@@ -1,5 +1,5 @@
 # wasmblr
-A single header file Web Assembly assembler.
+A single header file WebAssembly assembler.
 
 This library makes it easier to generate web assembly binaries directly from C++.
 Useful for JIT compilation from within projects compiled with Emscripten.
@@ -69,6 +69,11 @@ g++ test.cc -std=c++11 -o test
 ```
 
 # Supported Features
+
+The semantics of the assembler attempt to mimic the [WebAssembly standard](https://webassembly.github.io/spec/core/) closely.
+In the case of reserved keywords in C++ (such as export, xor, etc.), the mnemonic has an underscore appended (e.g. `export_`, `i32.xor_`).
+
+A couple of example uses follow:
 
 ### Recursion
 
