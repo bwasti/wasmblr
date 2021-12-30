@@ -59,6 +59,15 @@ const instance = new WebAssembly.Instance(m, {});
 console.log(instance.exports.add(8, 9));
 ```
 
+# Test
+
+With `node.js` installed,
+
+```
+g++ test.cc -std=c++11 -o test
+./test
+```
+
 # Supported Features
 
 ### Recursion
