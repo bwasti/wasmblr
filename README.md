@@ -1,7 +1,7 @@
 # wasmblr
 A single header file Web Assembly assembler.
 
-This library eases the generation of web assembly binaries directly from C++.
+This library makes it easier to generate web assembly binaries directly from C++.
 Perhaps useful for JIT compilation from within projects compiled with Emscripten.
 For examples see below, or read the `test.cc` file.
 
@@ -9,9 +9,12 @@ Contributions welcome!
 
 # Usage
 
-In C++, you can assemble a full wasm binary:
+`#include "wasmblr.h"` and compile with `-std=c++11` or higher.
+
+In C++:
 
 ```cpp
+
 struct Code : wasmblr::CodeGenerator {
   Code() : wasmblr::CodeGenerator() {
     auto add_func = function({f32, f32}, {f32}, [&]() {
@@ -23,11 +26,30 @@ struct Code : wasmblr::CodeGenerator {
   }
 };
 
+
 Code c;
-std::ofstream wasm("factorial.wasm", std::ios::binary);
 auto bytes = c.emit();
+std::ofstream wasm("factorial.wasm", std::ios::binary);
 wasm.write((char*)bytes.data(), bytes.size());
 ```
+
+If you'd prefer to avoid inheritance, you can use the code generator directly:
+
+```cpp
+wasmblr::CodeGenerator cg;
+auto add_func = cg.function({cg.f32, cg.f32}, {cg.f32}, [&]() {
+  cg.local.get(0);
+  cg.local.get(1);
+  cg.f32.add();
+});
+cg.export_(add_func, "add");
+
+auto bytes = cg.emit();
+std::ofstream wasm("factorial.wasm", std::ios::binary);
+wasm.write((char*)bytes.data(), bytes.size());
+```
+
+And then, in JavaScript:
 
 ```javascript
 const wasm = fs.readFileSync('factorial.wasm'); // or however you'd like to load it
