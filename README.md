@@ -2,7 +2,7 @@
 A single header file Web Assembly assembler.
 
 This library makes it easier to generate web assembly binaries directly from C++.
-Perhaps useful for JIT compilation from within projects compiled with Emscripten.
+Useful for JIT compilation from within projects compiled with Emscripten.
 For examples see below, or read the `test.cc` file.
 
 Contributions welcome!
