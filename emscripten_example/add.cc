@@ -3,7 +3,7 @@
 std::vector<uint8_t> gen_add_loop(int len) {
   assert(len % 4 == 0);
   wasmblr::CodeGenerator cg;
-  cg.memory(1, 20).export_("mem");
+  cg.memory(1, 10).export_("mem");
   auto add_func = cg.function({cg.i32, cg.i32, cg.i32}, {}, [&]() {
     auto iter = cg.local(cg.i32);
     cg.i32.const_(0);
@@ -48,7 +48,7 @@ std::vector<uint8_t> gen_add_loop(int len) {
 std::vector<uint8_t> gen_add_unroll(int len) {
   assert(len % 4 == 0);
   wasmblr::CodeGenerator cg;
-  cg.memory(1, 20).export_("mem");
+  cg.memory(1, 10).export_("mem");
   auto add_func = cg.function({cg.i32, cg.i32, cg.i32}, {}, [&]() {
     // no loop at all
     for (auto i = 0; i < len / 4; ++i) {
@@ -72,7 +72,7 @@ std::vector<uint8_t> gen_add_unroll(int len) {
 std::vector<uint8_t> gen_add_mix(int len, int unroll) {
   assert(len % (unroll * 4) == 0);
   wasmblr::CodeGenerator cg;
-  cg.memory(1, 20).export_("mem");
+  cg.memory(1, 10).export_("mem");
   auto add_func = cg.function({cg.i32, cg.i32, cg.i32}, {}, [&]() {
     auto iter = cg.local(cg.i32);
     cg.i32.const_(0);
@@ -117,12 +117,12 @@ std::vector<uint8_t> gen_add_mix(int len, int unroll) {
 }
 
 std::vector<uint8_t> gen_add(int len, int unroll) {
-  if (unroll == len) {
+  if (unroll * 4 >= len) {
     return gen_add_unroll(len);
   } else if (unroll <= 1) {
     return gen_add_loop(len);
   }
-  return gen_add(len, unroll);
+  return gen_add_mix(len, unroll);
 }
 
 extern "C" {

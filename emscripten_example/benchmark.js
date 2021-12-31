@@ -68,12 +68,15 @@ function gen_wasmblr(N, unroll) {
 }
 
 function perf(N, name, fn) {
-  const warmup = 10;
-  const iters = 1024;
+  const warmup = 100;
+  const target_ms = 1000;
   {
+    const w0 = performance.now();
     for (let i = 0; i < warmup; ++i) {
       fn();
     }
+    const w1 = performance.now();
+    let iters = warmup * target_ms / (w1 - w0);
     const t0 = performance.now();
     for (let i = 0; i < iters; ++i) {
       fn();
