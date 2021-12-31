@@ -1,9 +1,9 @@
-const Module = require('./a.out');
+const Module = require('./add.js');
 const wasmblr_unroll = 16;
 const warmup = 100;
 const target_ms = 1000;
 
-function gen_pure(N) {
+async function gen_pure(N) {
   let a = new Array(N).fill(0);
   let b = new Array(N).fill(0);
   let c = new Array(N).fill(0);
@@ -17,7 +17,7 @@ function gen_pure(N) {
   return [add, a, b, c];
 }
 
-function gen_typed(N) {
+async function gen_typed(N) {
   let a = new Float32Array(N);
   let b = new Float32Array(N);
   let c = new Float32Array(N);
@@ -31,7 +31,7 @@ function gen_typed(N) {
   return [add, a, b, c];
 }
 
-function gen_emscripten(N) {
+async function gen_emscripten(N) {
   function emscripten_array(len) {
     var ptr = Module._malloc(len * 4);
     return [new Float32Array(Module.HEAPF32.buffer, ptr, len), ptr];
@@ -49,12 +49,12 @@ function gen_emscripten(N) {
   }];
 }
 
-function gen_wasmblr(N, unroll) {
+async function gen_wasmblr(N, unroll) {
   const wasm = Module._jit_add(N, unroll);
   const wasm_len = Module._jit_add_len(N, unroll);
   const wasm_data = new Uint8Array(Module.HEAP8.buffer, wasm, wasm_len);
-  const m = new WebAssembly.Module(wasm_data);
-  const instance = new WebAssembly.Instance(m, {});
+  const m = await WebAssembly.compile(wasm_data);
+  const instance = await WebAssembly.instantiate(m, {});
 
   let wasmblr_malloc_height = 0;
   let mem = instance.exports.mem;
@@ -75,11 +75,11 @@ function gen_wasmblr(N, unroll) {
   return [() => add(a_, b_, c_), a, b, c];
 }
 
-function gen_wasmblr_tuned(N) {
+async function gen_wasmblr_tuned(N) {
   let best = 0;
   let best_time = 1e9;
   for (let i = 0; Math.pow(2, i) < Math.min(1024, N / 4 + 2); ++i) {
-    let [fn, w_a, w_b, w_c] = gen_wasmblr(N, Math.pow(2, i));
+    let [fn, w_a, w_b, w_c] = await gen_wasmblr(N, Math.pow(2, i));
     for (let _ = 0; _ < 100; ++_) {
       fn();
     }
@@ -93,16 +93,16 @@ function gen_wasmblr_tuned(N) {
       best_time = diff;
     }
   }
-  return [...gen_wasmblr(N, Math.pow(2, best)), Math.pow(2, best)];
+  return [...await gen_wasmblr(N, Math.pow(2, best)), Math.pow(2, best)];
 }
 
-function perf(N, name, fn) {
+async function perf(N, name, fn) {
   const w0 = performance.now();
   for (let i = 0; i < warmup; ++i) {
     fn();
   }
   const w1 = performance.now();
-  let iters = Math.max(warmup * target_ms / (w1 - w0), 1);
+  let iters = Math.min(Math.max(warmup * target_ms / (w1 - w0), 1), 1e6);
   const t0 = performance.now();
   for (let i = 0; i < iters; ++i) {
     fn();
@@ -115,12 +115,12 @@ function perf(N, name, fn) {
   console.log(name, round(iters_sec), "iters/sec", `(${round(gb_sec)} GB/s)`);
 }
 
-function benchmark(N) {
-  let [pure_fn, p_a, p_b, p_c] = gen_pure(N);
-  let [typed_fn, t_a, t_b, t_c] = gen_typed(N);
-  let [emscripten_fn, e_a, e_b, e_c, emscripten_cleanup] = gen_emscripten(N);
-  let [wasmblr_fn, w_a, w_b, w_c] = gen_wasmblr(N, wasmblr_unroll);
-  let [wasmblr_tuned_fn, wt_a, wt_b, wt_c, unroll] = gen_wasmblr_tuned(N);
+async function benchmark(N) {
+  let [pure_fn, p_a, p_b, p_c] = await gen_pure(N);
+  let [typed_fn, t_a, t_b, t_c] = await gen_typed(N);
+  let [emscripten_fn, e_a, e_b, e_c, emscripten_cleanup] = await gen_emscripten(N);
+  let [wasmblr_fn, w_a, w_b, w_c] = await gen_wasmblr(N, wasmblr_unroll);
+  let [wasmblr_tuned_fn, wt_a, wt_b, wt_c, unroll] = await gen_wasmblr_tuned(N);
 
   for (let i = 0; i < N; ++i) {
     let a = Math.random();
@@ -167,19 +167,20 @@ function benchmark(N) {
   }
 
   console.log("benchmarking vec add of size", N);
-  perf(N, "  pure javascript:        ", pure_fn);
-  perf(N, "  typed arrays:           ", typed_fn);
-  perf(N, "  emscripten (simd):      ", emscripten_fn);
-  perf(N, "  wasmblr:                ", wasmblr_fn);
-  perf(N, `  wasmblr (tuned ${unroll}):`.padEnd(26), wasmblr_tuned_fn);
+  await perf(N, "  pure javascript:        ", pure_fn);
+  await perf(N, "  typed arrays:           ", typed_fn);
+  await perf(N, "  emscripten (simd):      ", emscripten_fn);
+  await perf(N, "  wasmblr:                ", wasmblr_fn);
+  await perf(N, `  wasmblr (tuned ${unroll}):`.padEnd(26), wasmblr_tuned_fn);
 
   emscripten_cleanup()
 }
 
 Module['onRuntimeInitialized'] = function() {
   // any larger and you'll need to recompile to give emscripten more memory
-  //for (let i = 4; i < 1024 * 1024; i *= 2) {
+  (async () => {
   for (let i of [4, 64, 1024, 16 * 1024, 256 * 1024]) {
-    benchmark(i);
+    await benchmark(i);
   }
+  })();
 }
