@@ -50,6 +50,18 @@ void testBasic() {
   testJS(c, "console.log(instance.exports.add(8, 4));", "12\n");
 }
 
+void testConstant() {
+  struct Code : wasmblr::CodeGenerator {
+    Code() : wasmblr::CodeGenerator() {
+      auto constant_func =
+          function({}, {i32}, [&]() { i32.const_(1024 * 1024 * 4); });
+      export_(constant_func, "constant");
+    }
+  };
+  Code c;
+  testJS(c, "console.log(instance.exports.constant());", "4194304\n");
+}
+
 void testRecursive() {
   struct Code : wasmblr::CodeGenerator {
     // NB: Needs to be a class variable,
@@ -235,6 +247,7 @@ console.log(inp[0], inp[1], inp[2], inp[3]);
 
 int main() {
   testBasic();
+  testConstant();
   testRecursive();
   testIfStatement();
   testLoop();
