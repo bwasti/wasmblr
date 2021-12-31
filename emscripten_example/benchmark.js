@@ -5,6 +5,7 @@ function gen_pure(N) {
   let a = new Array(N).fill(0);
   let b = new Array(N).fill(0);
   let c = new Array(N).fill(0);
+
   function add() {
     for (let i = 0; i < N; ++i) {
       c[i] = a[i] + b[i];
@@ -18,6 +19,7 @@ function gen_typed(N) {
   let a = new Float32Array(N);
   let b = new Float32Array(N);
   let c = new Float32Array(N);
+
   function add() {
     for (let i = 0; i < N; ++i) {
       c[i] = a[i] + b[i];
@@ -38,7 +40,11 @@ function gen_emscripten(N) {
   let [c, c_] = emscripten_array(N);
   const add = Module._add;
 
-  return [()=>add(a_, b_, c_, N), a, b, c];
+  return [() => add(a_, b_, c_, N), a, b, c, () => {
+    Module._free(a_);
+    Module._free(b_);
+    Module._free(c_);
+  }];
 }
 
 function gen_wasmblr(N, unroll) {
@@ -49,12 +55,12 @@ function gen_wasmblr(N, unroll) {
   const instance = new WebAssembly.Instance(m, {});
 
   let wasmblr_malloc_height = 0;
-  function wasmblr_array(len) { let inp_mem = instance.exports.mem;
-    while ((inp_mem.buffer.byteLength - wasmblr_malloc_height) < len) {
-      inp_mem.grow(1);
-    }
+  let mem = instance.exports.mem;
+
+  function wasmblr_array(len) {
+    console.assert((mem.buffer.byteLength - wasmblr_malloc_height) > len * 4);
     let ptr = wasmblr_malloc_height;
-    let array = new Float32Array(inp_mem.buffer, ptr, len);
+    let array = new Float32Array(mem.buffer, ptr, len);
     wasmblr_malloc_height += len * 4;
     return [array, ptr];
   }
@@ -64,13 +70,12 @@ function gen_wasmblr(N, unroll) {
 
   const add = instance.exports.add;
 
-  return [()=>add(a_, b_, c_), a, b, c];
+  return [() => add(a_, b_, c_), a, b, c];
 }
 
 function perf(N, name, fn) {
   const warmup = 100;
-  const target_ms = 1000;
-  {
+  const target_ms = 1000; {
     const w0 = performance.now();
     for (let i = 0; i < warmup; ++i) {
       fn();
@@ -85,7 +90,7 @@ function perf(N, name, fn) {
     const iters_sec = 1e3 * iters / (t1 - t0);
     const elem_sec = N * iters_sec;
     const gb_sec = elem_sec * 4 * 3 /* 2 read 1 write */ / 1e9;
-    const round = (num)=>Math.round(num * 100) / 100
+    const round = (num) => Math.round(num * 100) / 100
     console.log(name, round(iters_sec), "iters/sec", `(${round(gb_sec)} GB/s)`);
   }
 }
@@ -93,7 +98,7 @@ function perf(N, name, fn) {
 function benchmark(N) {
   let [pure_fn, p_a, p_b, p_c] = gen_pure(N);
   let [typed_fn, t_a, t_b, t_c] = gen_typed(N);
-  let [emscripten_fn, e_a, e_b, e_c] = gen_emscripten(N);
+  let [emscripten_fn, e_a, e_b, e_c, emscripten_cleanup] = gen_emscripten(N);
   let [wasmblr_fn, w_a, w_b, w_c] = gen_wasmblr(N, wasmblr_unroll);
 
   for (let i = 0; i < N; ++i) {
@@ -123,9 +128,15 @@ function benchmark(N) {
       }
       return true;
     }
-    if (!check(p_c, "pure")) { return; }
-    if (!check(e_c, "emscripten")) { return; }
-    if (!check(w_c, "wasmblr")) { return; }
+    if (!check(p_c, "pure")) {
+      return;
+    }
+    if (!check(e_c, "emscripten")) {
+      return;
+    }
+    if (!check(w_c, "wasmblr")) {
+      return;
+    }
   }
 
   console.log("benchmarking vec add of size", N);
@@ -134,10 +145,12 @@ function benchmark(N) {
   perf(N, "  emscripten (simd):  ", emscripten_fn);
   perf(N, "  wasmblr:            ", wasmblr_fn);
 
+  emscripten_cleanup()
 }
 
 Module['onRuntimeInitialized'] = function() {
-  for (let i = 4; i < 1024 * 2; i*=2) {
+  // any larger and you'll need to recompile to give emscripten more memory
+  for (let i = 4; i < 1024 * 1024; i *= 2) {
     benchmark(i);
   }
 }
