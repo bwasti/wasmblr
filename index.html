@@ -1,2 +1,36 @@
 <script src="add.js"></script>
 <script src="benchmark.js"></script>
+<script>
+function error() {
+  document.querySelector('pre').textContent = "Cannot run SIMD on this browser.  Please try Chrome or Firefox";
+}
+window.addEventListener('load', function() {
+  Module['onRuntimeInitialized'] = function() {
+  try {
+      Module._jit_add(4, 1);
+      let button = document.createElement('button');
+      button.textContent = 'Run Benchmarks';
+      button.addEventListener('click', function() {
+        (async () => {
+        for (let i = 2; i < 18; ++i) {
+          await benchmark(Math.pow(2, i));
+        }
+        })();
+      });
+      document.body.prepend(button);
+  } catch {
+    error();
+    return;
+  }
+  };
+  Module['onAbort'] = function() {
+    error();
+  };
+
+});
+</script>
+
+<body>
+<pre>
+</pre>
+</body>

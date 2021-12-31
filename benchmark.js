@@ -3,6 +3,12 @@ const wasmblr_unroll = 16;
 const warmup = 100;
 const target_ms = 1000;
 
+function log(...args) {
+  const str = args.reduce((a, b) => { return a + " " + b; }, "");
+  document.querySelector('pre').appendChild(document.createTextNode(str));
+  document.querySelector('pre').appendChild(document.createElement('br'));
+}
+
 async function gen_pure(N) {
   let a = new Array(N).fill(0);
   let b = new Array(N).fill(0);
@@ -84,7 +90,7 @@ async function gen_wasmblr_tuned(N) {
       fn();
     }
     const t = performance.now();
-    for (let _ = 0; _ < 1000; ++_) {
+    for (let _ = 0; _ < 10000; ++_) {
       fn();
     }
     const diff = performance.now() - t;
@@ -96,13 +102,13 @@ async function gen_wasmblr_tuned(N) {
   return [...await gen_wasmblr(N, Math.pow(2, best)), Math.pow(2, best)];
 }
 
-async function perf(N, name, fn) {
+function perf(N, name, fn) {
   const w0 = performance.now();
   for (let i = 0; i < warmup; ++i) {
     fn();
   }
   const w1 = performance.now();
-  let iters = Math.min(Math.max(warmup * target_ms / (w1 - w0), 1), 1e6);
+  let iters = Math.min(Math.max(warmup * target_ms / (w1 - w0), 1), Math.min(1e9 / N, 1e6));
   const t0 = performance.now();
   for (let i = 0; i < iters; ++i) {
     fn();
@@ -112,7 +118,7 @@ async function perf(N, name, fn) {
   const elem_sec = N * iters_sec;
   const gb_sec = elem_sec * 4 * 3 /* 2 read 1 write */ / 1e9;
   const round = (num) => Math.round(num * 100) / 100
-  console.log(name, round(iters_sec), "iters/sec", `(${round(gb_sec)} GB/s)`);
+  log(name, round(iters_sec), "iters/sec", `(${round(gb_sec)} GB/s)`);
 }
 
 async function benchmark(N) {
@@ -166,20 +172,21 @@ async function benchmark(N) {
     }
   }
 
-  console.log("benchmarking vec add of size", N);
-  await perf(N, "  pure javascript:        ", pure_fn);
-  await perf(N, "  typed arrays:           ", typed_fn);
-  await perf(N, "  emscripten (simd):      ", emscripten_fn);
-  await perf(N, "  wasmblr:                ", wasmblr_fn);
-  await perf(N, `  wasmblr (tuned ${unroll}):`.padEnd(26), wasmblr_tuned_fn);
+  log();
+  log("benchmarking vec add of size", N);
+  perf(N, "  pure javascript:        ", pure_fn);
+  perf(N, "  typed arrays:           ", typed_fn);
+  perf(N, "  emscripten (simd):      ", emscripten_fn);
+  perf(N, "  wasmblr:                ", wasmblr_fn);
+  perf(N, `  wasmblr (tuned ${unroll}):`.padEnd(26), wasmblr_tuned_fn);
 
   emscripten_cleanup()
 }
 
-Module['onRuntimeInitialized'] = function() {
-  // any larger and you'll need to recompile to give emscripten more memory
-  //for (let i = 4; i < 1024 * 1024; i *= 2) {
-  for (let i of [4, 64, 1024, 16 * 1024, 256 * 1024]) {
-    //benchmark(i);
-  }
-}
+//Module['onRuntimeInitialized'] = function() {
+//  // any larger and you'll need to recompile to give emscripten more memory
+//  //for (let i = 4; i < 1024 * 1024; i *= 2) {
+//  for (let i of [4, 64, 1024, 16 * 1024, 256 * 1024]) {
+//    //benchmark(i);
+//  }
+//}
