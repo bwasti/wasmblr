@@ -1,5 +1,7 @@
 const Module = require('./a.out');
 const wasmblr_unroll = 16;
+const warmup = 100;
+const target_ms = 1000;
 
 function gen_pure(N) {
   let a = new Array(N).fill(0);
@@ -73,26 +75,40 @@ function gen_wasmblr(N, unroll) {
   return [() => add(a_, b_, c_), a, b, c];
 }
 
-function perf(N, name, fn) {
-  const warmup = 100;
-  const target_ms = 1000; {
-    const w0 = performance.now();
-    for (let i = 0; i < warmup; ++i) {
-      fn();
+function gen_wasmblr_tuned(N) {
+  let best = 0;
+  let best_time = 1e9;
+  for (let i = 0; Math.pow(2, i) < 1024; ++i) {
+    let [fn, w_a, w_b, w_c] = gen_wasmblr(N, Math.pow(2, i));
+    fn(); fn();
+    const t = performance.now();
+    fn(); fn(); fn();
+    const diff = performance.now() - t;
+    if (diff < best_time) {
+      best = i;
+      best_time = diff;
     }
-    const w1 = performance.now();
-    let iters = warmup * target_ms / (w1 - w0);
-    const t0 = performance.now();
-    for (let i = 0; i < iters; ++i) {
-      fn();
-    }
-    const t1 = performance.now();
-    const iters_sec = 1e3 * iters / (t1 - t0);
-    const elem_sec = N * iters_sec;
-    const gb_sec = elem_sec * 4 * 3 /* 2 read 1 write */ / 1e9;
-    const round = (num) => Math.round(num * 100) / 100
-    console.log(name, round(iters_sec), "iters/sec", `(${round(gb_sec)} GB/s)`);
   }
+  return gen_wasmblr(N, Math.pow(2, best));
+}
+
+function perf(N, name, fn) {
+  const w0 = performance.now();
+  for (let i = 0; i < warmup; ++i) {
+    fn();
+  }
+  const w1 = performance.now();
+  let iters = Math.max(warmup * target_ms / (w1 - w0), 1);
+  const t0 = performance.now();
+  for (let i = 0; i < iters; ++i) {
+    fn();
+  }
+  const t1 = performance.now();
+  const iters_sec = 1e3 * iters / (t1 - t0);
+  const elem_sec = N * iters_sec;
+  const gb_sec = elem_sec * 4 * 3 /* 2 read 1 write */ / 1e9;
+  const round = (num) => Math.round(num * 100) / 100
+  console.log(name, round(iters_sec), "iters/sec", `(${round(gb_sec)} GB/s)`);
 }
 
 function benchmark(N) {
@@ -100,6 +116,7 @@ function benchmark(N) {
   let [typed_fn, t_a, t_b, t_c] = gen_typed(N);
   let [emscripten_fn, e_a, e_b, e_c, emscripten_cleanup] = gen_emscripten(N);
   let [wasmblr_fn, w_a, w_b, w_c] = gen_wasmblr(N, wasmblr_unroll);
+  let [wasmblr_tuned_fn, wt_a, wt_b, wt_c] = gen_wasmblr_tuned(N);
 
   for (let i = 0; i < N; ++i) {
     let a = Math.random();
@@ -108,17 +125,20 @@ function benchmark(N) {
     t_a[i] = a;
     e_a[i] = a;
     w_a[i] = a;
+    wt_a[i] = a;
 
     p_b[i] = b;
     t_b[i] = b;
     e_b[i] = b;
     w_b[i] = b;
+    wt_b[i] = b;
   }
 
   pure_fn();
   typed_fn();
   emscripten_fn();
   wasmblr_fn();
+  wasmblr_tuned_fn();
 
   for (let i = 0; i < N; ++i) {
     function check(arr, name) {
@@ -137,6 +157,9 @@ function benchmark(N) {
     if (!check(w_c, "wasmblr")) {
       return;
     }
+    if (!check(wt_c, "wasmblr (tuned)")) {
+      return;
+    }
   }
 
   console.log("benchmarking vec add of size", N);
@@ -144,13 +167,15 @@ function benchmark(N) {
   perf(N, "  typed arrays:       ", typed_fn);
   perf(N, "  emscripten (simd):  ", emscripten_fn);
   perf(N, "  wasmblr:            ", wasmblr_fn);
+  perf(N, "  wasmblr (tuned):    ", wasmblr_tuned_fn);
 
   emscripten_cleanup()
 }
 
 Module['onRuntimeInitialized'] = function() {
   // any larger and you'll need to recompile to give emscripten more memory
-  for (let i = 4; i < 1024 * 1024; i *= 2) {
+  //for (let i = 4; i < 1024 * 1024; i *= 2) {
+  for (let i of [4, 64, 1024, 4096, 1024 * 512]) {
     benchmark(i);
   }
 }
