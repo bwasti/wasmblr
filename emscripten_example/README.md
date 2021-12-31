@@ -9,7 +9,10 @@ make
 node benchmark.js
 ```
 
-On my MacBook M1, these are the results I get:
+If you change the value of `wasmblr_unroll` at the top of `benchmark.js`, different code will be generated.
+Amping it all the way up to 1024 shows some benefits over the default 16.
+
+On my MacBook M1, these are the results I get (`wasmblr_unroll = 16`):
 
 ```
 benchmarking vec add of size 4
