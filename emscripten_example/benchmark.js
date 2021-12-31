@@ -78,18 +78,22 @@ function gen_wasmblr(N, unroll) {
 function gen_wasmblr_tuned(N) {
   let best = 0;
   let best_time = 1e9;
-  for (let i = 0; Math.pow(2, i) < 1024; ++i) {
+  for (let i = 0; Math.pow(2, i) < Math.min(1024, N / 4 + 2); ++i) {
     let [fn, w_a, w_b, w_c] = gen_wasmblr(N, Math.pow(2, i));
-    fn(); fn();
+    for (let _ = 0; _ < 100; ++_) {
+      fn();
+    }
     const t = performance.now();
-    fn(); fn(); fn();
+    for (let _ = 0; _ < 1000; ++_) {
+      fn();
+    }
     const diff = performance.now() - t;
     if (diff < best_time) {
       best = i;
       best_time = diff;
     }
   }
-  return gen_wasmblr(N, Math.pow(2, best));
+  return [...gen_wasmblr(N, Math.pow(2, best)), Math.pow(2, best)];
 }
 
 function perf(N, name, fn) {
@@ -116,7 +120,7 @@ function benchmark(N) {
   let [typed_fn, t_a, t_b, t_c] = gen_typed(N);
   let [emscripten_fn, e_a, e_b, e_c, emscripten_cleanup] = gen_emscripten(N);
   let [wasmblr_fn, w_a, w_b, w_c] = gen_wasmblr(N, wasmblr_unroll);
-  let [wasmblr_tuned_fn, wt_a, wt_b, wt_c] = gen_wasmblr_tuned(N);
+  let [wasmblr_tuned_fn, wt_a, wt_b, wt_c, unroll] = gen_wasmblr_tuned(N);
 
   for (let i = 0; i < N; ++i) {
     let a = Math.random();
@@ -163,11 +167,11 @@ function benchmark(N) {
   }
 
   console.log("benchmarking vec add of size", N);
-  perf(N, "  pure javascript:    ", pure_fn);
-  perf(N, "  typed arrays:       ", typed_fn);
-  perf(N, "  emscripten (simd):  ", emscripten_fn);
-  perf(N, "  wasmblr:            ", wasmblr_fn);
-  perf(N, "  wasmblr (tuned):    ", wasmblr_tuned_fn);
+  perf(N, "  pure javascript:        ", pure_fn);
+  perf(N, "  typed arrays:           ", typed_fn);
+  perf(N, "  emscripten (simd):      ", emscripten_fn);
+  perf(N, "  wasmblr:                ", wasmblr_fn);
+  perf(N, `  wasmblr (tuned ${unroll}):`.padEnd(26), wasmblr_tuned_fn);
 
   emscripten_cleanup()
 }
@@ -175,7 +179,7 @@ function benchmark(N) {
 Module['onRuntimeInitialized'] = function() {
   // any larger and you'll need to recompile to give emscripten more memory
   //for (let i = 4; i < 1024 * 1024; i *= 2) {
-  for (let i of [4, 64, 1024, 4096, 1024 * 512]) {
+  for (let i of [4, 64, 1024, 16 * 1024, 256 * 1024]) {
     benchmark(i);
   }
 }

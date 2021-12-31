@@ -85,17 +85,11 @@ std::vector<uint8_t> gen_add_mix(int len, int unroll) {
 
     for (auto i = 0; i < unroll; ++i) {
       cg.local.get(2);
-      cg.local.get(iter);
-      cg.i32.add();
 
       cg.local.get(0);
-      cg.local.get(iter);
-      cg.i32.add();
       cg.v128.load(0, i * 16);
 
       cg.local.get(1);
-      cg.local.get(iter);
-      cg.i32.add();
       cg.v128.load(0, i * 16);
 
       cg.v128.f32x4_add();
@@ -103,8 +97,23 @@ std::vector<uint8_t> gen_add_mix(int len, int unroll) {
       cg.v128.store(0, i * 16);
     }
 
+    cg.local.get(0);
     cg.i32.const_(unroll * 16);
+    cg.i32.add();
+    cg.local.set(0);
+
+    cg.local.get(1);
+    cg.i32.const_(unroll * 16);
+    cg.i32.add();
+    cg.local.set(1);
+
+    cg.local.get(2);
+    cg.i32.const_(unroll * 16);
+    cg.i32.add();
+    cg.local.set(2);
+
     cg.local.get(iter);
+    cg.i32.const_(unroll * 16);
     cg.i32.add();
     cg.local.set(iter);
 
