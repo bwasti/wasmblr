@@ -29,7 +29,7 @@ struct Code : wasmblr::CodeGenerator {
 
 Code c;
 auto bytes = c.emit();
-std::ofstream wasm("factorial.wasm", std::ios::binary);
+std::ofstream wasm("add.wasm", std::ios::binary);
 wasm.write((char*)bytes.data(), bytes.size());
 ```
 
@@ -45,14 +45,14 @@ auto add_func = cg.function({cg.f32, cg.f32}, {cg.f32}, [&]() {
 cg.export_(add_func, "add");
 
 auto bytes = cg.emit();
-std::ofstream wasm("factorial.wasm", std::ios::binary);
+std::ofstream wasm("add.wasm", std::ios::binary);
 wasm.write((char*)bytes.data(), bytes.size());
 ```
 
 And then, in JavaScript:
 
 ```javascript
-const wasm = fs.readFileSync('factorial.wasm'); // or however you'd like to load it
+const wasm = fs.readFileSync('add.wasm'); // or however you'd like to load it
 const m = new WebAssembly.Module(wasm);
 const instance = new WebAssembly.Instance(m, {});
 // use the function
