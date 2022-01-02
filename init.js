@@ -165,7 +165,7 @@
               let pre = document.querySelector("pre");
               remove(pre);
               let times = {};
-              let keys = ["Pure JS", "TypedArrays", "Emscripten (simd)", "Wasmblr", "Wasmblr (tuned)"];
+              let keys = ["Pure JS", "Pure JS (unrolled)", "TypedArrays", "Emscripten (simd)", "Wasmblr", "Wasmblr (tuned)"];
               for (let k of keys) {
                   times[k] = [];
               }

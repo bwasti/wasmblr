@@ -24,6 +24,23 @@ async function gen_pure(N) {
     return [add, a, b, c];
 }
 
+async function gen_pure_unroll4(N) {
+    let a = new Array(N).fill(0);
+    let b = new Array(N).fill(0);
+    let c = new Array(N).fill(0);
+
+    function add() {
+        for (let i = 0; i < N; i += 4) {
+            c[i  ] = a[i  ] + b[i  ];
+            c[i+1] = a[i+1] + b[i+1];
+            c[i+2] = a[i+2] + b[i+2];
+            c[i+3] = a[i+3] + b[i+3];  
+        }
+    }
+
+    return [add, a, b, c];
+}
+
 async function gen_typed(N) {
     let a = new Float32Array(N).fill(0);
     let b = new Float32Array(N).fill(0);
@@ -133,6 +150,7 @@ function perf(N, name, fn) {
 
 async function benchmark(Module, N) {
     let [pure_fn, p_a, p_b, p_c] = await gen_pure(N);
+    let [pure_unroll_fn, pu_a, pu_b, pu_c] = await gen_pure_unroll4(N);
     let [typed_fn, t_a, t_b, t_c] = await gen_typed(N);
     let [emscripten_fn, e_a, e_b, e_c, emscripten_cleanup] = await gen_emscripten(Module, N);
     let [wasmblr_fn, w_a, w_b, w_c, wasmblr_cleanup] = await gen_wasmblr(Module, N, wasmblr_unroll);
@@ -142,12 +160,14 @@ async function benchmark(Module, N) {
         let a = Math.random();
         let b = Math.random();
         p_a[i] = a;
+        pu_a[i] = a;
         t_a[i] = a;
         e_a[i] = a;
         w_a[i] = a;
         wt_a[i] = a;
 
         p_b[i] = b;
+        pu_b[i] = b;
         t_b[i] = b;
         e_b[i] = b;
         w_b[i] = b;
@@ -155,6 +175,7 @@ async function benchmark(Module, N) {
     }
 
     pure_fn();
+    pure_unroll_fn();
     typed_fn();
     emscripten_fn();
     wasmblr_fn();
@@ -169,6 +190,10 @@ async function benchmark(Module, N) {
             return true;
         }
         if (!check(p_c, "pure")) {
+            console.log("error");
+            return;
+        }
+        if (!check(pu_c, "pure unroll")) {
             console.log("error");
             return;
         }
@@ -188,15 +213,16 @@ async function benchmark(Module, N) {
 
     log();
     log("benchmarking vec add of size", N);
-    const p_gbs = perf(N, "  pure javascript:        ", pure_fn);
-    const t_gbs = perf(N, "  typed arrays:           ", typed_fn);
-    const e_gbs = perf(N, "  emscripten (simd):      ", emscripten_fn);
-    const w_gbs = perf(N, "  wasmblr:                ", wasmblr_fn);
-    const wt_gbs = perf(N, `  wasmblr (tuned ${unroll}):`.padEnd(26), wasmblr_tuned_fn);
+    const p_gbs = perf(N, "  pure javascript:          ", pure_fn);
+    const pu_gbs = perf(N, "  pure javascript (unroll): ", pure_unroll_fn);
+    const t_gbs = perf(N, "  typed arrays:             ", typed_fn);
+    const e_gbs = perf(N, "  emscripten (simd):        ", emscripten_fn);
+    const w_gbs = perf(N, "  wasmblr:                  ", wasmblr_fn);
+    const wt_gbs = perf(N, `  wasmblr (tuned ${unroll}):`.padEnd(28), wasmblr_tuned_fn);
 
     emscripten_cleanup()
     wasmblr_cleanup()
     wasmblr_tuned_cleanup()
 
-    return [p_gbs, t_gbs, e_gbs, w_gbs, wt_gbs];
+    return [p_gbs, pu_gbs, t_gbs, e_gbs, w_gbs, wt_gbs];
 }
