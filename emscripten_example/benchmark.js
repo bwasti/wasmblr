@@ -3,7 +3,6 @@ var Module;
 const wasmblr_unroll = 16;
 const warmup = 100;
 const target_ms = 1000;
-const simd = true;
 
 async function gen_pure(N) {
   let a = new Array(N).fill(0);
@@ -52,8 +51,8 @@ async function gen_emscripten(N) {
 }
 
 async function gen_wasmblr(N, unroll) {
-  const wasm = Module._jit_add(N, unroll, simd);
-  const wasm_len = Module._jit_add_len(N, unroll, simd);
+  const wasm = Module._jit_add(N, unroll);
+  const wasm_len = Module._jit_add_len(N, unroll);
   const wasm_data = new Uint8Array(Module.HEAP8.buffer, wasm, wasm_len);
   const m = await WebAssembly.compile(wasm_data);
   const instance = await WebAssembly.instantiate(m, {});
@@ -172,7 +171,7 @@ async function benchmark(N) {
   console.log("benchmarking vec add of size", N);
   await perf(N, "  pure javascript:        ", pure_fn);
   await perf(N, "  typed arrays:           ", typed_fn);
-  await perf(N, "  emscripten (simd):      ", emscripten_fn);
+  await perf(N, "  emscripten:             ", emscripten_fn);
   await perf(N, "  wasmblr:                ", wasmblr_fn);
   await perf(N, `  wasmblr (tuned ${unroll}):`.padEnd(26), wasmblr_tuned_fn);
 

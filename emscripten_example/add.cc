@@ -254,14 +254,20 @@ void add(const float* a, const float* b, float* c, int len) {
   }
 }
 
-uint8_t* jit_add(int len, int unroll, bool simd) {
+#ifdef SIMD
+static bool simd = true;
+#else
+static bool simd = false;
+#endif
+
+uint8_t* jit_add(int len, int unroll) {
   auto bytes = gen_add(len, unroll, simd);
   uint8_t* out = (uint8_t*)malloc(bytes.size());
   memcpy(out, bytes.data(), bytes.size());
   return out;
 }
 
-int jit_add_len(int len, int unroll, bool simd) {
+int jit_add_len(int len, int unroll) {
   auto bytes = gen_add(len, unroll, simd);
   return bytes.size();
 }
