@@ -12,10 +12,6 @@
         margin-bottom: 5px;
       }
     </style>
-    <script src="add.js"></script>
-    <script src="benchmark.js"></script>
-    <script src="https://d3js.org/d3.v4.js"></script>
-
     <script>
       function error() {
         document.querySelector("pre").textContent = "Cannot run SIMD on this browser.  Please try Chrome or Firefox (or refresh to try again)";
@@ -23,7 +19,7 @@
 
       function buildGraph(times) {
         var margin = { top: 10, right: 30, bottom: 30, left: 60 },
-          width = 460 - margin.left - margin.right,
+          width = document.body.clientWidth - margin.left - margin.right,
           height = 400 - margin.top - margin.bottom;
         d3.select("svg").remove();
         let g = document.querySelector("#graph");
@@ -146,10 +142,11 @@
             }
           })();
         });
-        document.body.prepend(button);
+        document.getElementById("button_div").appendChild(button);
       }
 
       window.addEventListener("load", function () {
+        Module["onRuntimeInitialized"] = init;
         Module["onAbort"] = function (e) {
           if (e.indexOf("called before runtime initialization") > 0) {
             Module["onRuntimeInitialized"] = init;
@@ -160,13 +157,26 @@
         };
         try {
           init();
-        } catch {
+        } catch(e) {
           Module["onRuntimeInitialized"] = init;
+          console.log(e);
+          setTimeout(()=> { try { init(); } catch { error(); } }, 1000);
         }
       });
     </script>
+    <script src="add.js">
+      Module["onRuntimeInitialized"] = init;
+    </script>
+    <script src="benchmark.js"></script>
+    <script src="https://d3js.org/d3.v4.js"></script>
+
   </head>
   <body>
+    This page benchmarks vector additions.  The techniques used are described in this writeup:
+    <a href="https://jott.live/markdown/javascript_vector_addition">https://jott.live/markdown/javascript_vector_addition</a>
+    <br>
+    <br>
+    <div id="button_div"></div>
     <div id="graph"></div>
     <pre></pre>
   </body>
