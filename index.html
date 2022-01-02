@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <meta name="viewport" content="width=device-width, user-scalable=no">
     <style>
       * {
         font-family: monospace;
       }
       body {
+        padding: 10px 5%;
         text-align: center;
       }
       button {
@@ -14,12 +16,42 @@
     </style>
     <script>
       function error() {
-        document.querySelector("pre").textContent = "Cannot run SIMD on this browser.  Please try Chrome or Firefox (or refresh to try again)";
+        const out = document.querySelector("#graph");
+        let b = document.createElement('b');
+        b.appendChild(document.createTextNode("Cannot run SIMD on this browser.  Please try Chrome or Firefox (or refresh to try again)"));
+        out.appendChild(b);
+        function addImg(url) {
+          const image = document.createElement('img');
+          image.src = url;
+          image.style.width = "100%";
+          image.style.maxWidth = "800px";
+          out.appendChild(image);
+        }
+        out.appendChild(document.createElement('br'));
+        out.appendChild(document.createElement('br'));
+        out.appendChild(document.createTextNode("To run in node.js, please grab the code here:"));
+        out.appendChild(document.createElement('br'));
+        let a = document.createElement('a');
+        a.href = "https://github.com/bwasti/wasmblr/tree/main/emscripten_example";
+        a.textContent = "https://github.com/bwasti/wasmblr/tree/main/emscripten_example";
+        out.appendChild(a);
+        out.appendChild(document.createElement('br'));
+        out.appendChild(document.createElement('br'));
+        out.appendChild(document.createTextNode("Alternatively, here are sample results in Firefox:"));
+        out.appendChild(document.createElement('br'));
+        out.appendChild(document.createElement('br'));
+        addImg("https://i.imgur.com/rIjkz6D.png");
+        out.appendChild(document.createElement('br'));
+        out.appendChild(document.createTextNode("and Chrome:"));
+        out.appendChild(document.createElement('br'));
+        out.appendChild(document.createElement('br'));
+        addImg("https://i.imgur.com/0VA6ioi.png");
+        out.appendChild(document.createElement('br'));
       }
 
       function buildGraph(times) {
-        var margin = { top: 10, right: 30, bottom: 30, left: 60 },
-          width = document.body.clientWidth - margin.left - margin.right,
+        var margin = { top: 10, right: 40, bottom: 30, left: 40 },
+          width = Math.floor(document.body.clientWidth * 0.8) - margin.left - margin.right,
           height = 400 - margin.top - margin.bottom;
         d3.select("svg").remove();
         let g = document.querySelector("#graph");
@@ -33,7 +65,7 @@
         for (let k of keys) {
           let span = document.createElement("span");
           span.style.color = color(k);
-          span.style.padding = "2px";
+          span.style.padding = "5px";
           span.textContent = k;
           g.appendChild(span);
         }
@@ -56,25 +88,22 @@
           all_data = all_data.concat(times[k]);
         }
 
-        var x = d3
-          .scaleLinear()
-          .domain(
+        var x = d3.scaleLog().base(2).domain(
             d3.extent(all_data, function (d) {
               return d[0];
-            })
-          )
+            }))
           .range([0, width]);
         svg
           .append("g")
           .attr("transform", "translate(0," + height + ")")
-          .call(d3.axisBottom(x).ticks(5));
+          .call(d3.axisBottom(x).ticks(25));
 
         // text label for the x axis
         svg
           .append("text")
           .attr("transform", "translate(" + width / 2 + " ," + (height + margin.top + 20) + ")")
           .style("text-anchor", "middle")
-          .text("Vector Size (2^N)");
+          .text("Vector Size");
 
         var y = d3
           .scaleLinear()
@@ -122,8 +151,12 @@
           .duration(500);
       }
 
-      function init() {
+      function init(Module) {
         Module._jit_add(4, 1);
+        let g = document.querySelector("#graph");
+        while (g.firstChild) {
+          g.removeChild(g.firstChild);
+        }
         let button = document.createElement("button");
         button.textContent = "Run Benchmarks";
         let times = {};
@@ -133,10 +166,10 @@
         }
         button.addEventListener("click", function () {
           (async () => {
-            for (let i = 2; i < 18; ++i) {
-              const result = await benchmark(Math.pow(2, i));
+            for (let i = 2; i < 20; ++i) {
+              const result = await benchmark(Module, Math.pow(2, i));
               for (let k of keys) {
-                times[k].push([i, result[keys.indexOf(k)]]);
+                times[k].push([Math.pow(2, i), result[keys.indexOf(k)]]);
               }
               buildGraph(times);
             }
@@ -145,27 +178,23 @@
         document.getElementById("button_div").appendChild(button);
       }
 
-      window.addEventListener("load", function () {
-        Module["onRuntimeInitialized"] = init;
-        Module["onAbort"] = function (e) {
-          if (e.indexOf("called before runtime initialization") > 0) {
-            Module["onRuntimeInitialized"] = init;
-            return;
-          }
-          console.log(e);
-          error();
-        };
+      function tryInit() {
         try {
           init();
         } catch(e) {
-          Module["onRuntimeInitialized"] = init;
-          console.log(e);
-          setTimeout(()=> { try { init(); } catch { error(); } }, 1000);
+          error();
         }
+      }
+
+      window.addEventListener("load", function () {
+        try {
+          createMyModule().then(init).catch(e=>{error()});
+        } catch(e) {
+          error();
+        };
       });
     </script>
     <script src="add.js">
-      Module["onRuntimeInitialized"] = init;
     </script>
     <script src="benchmark.js"></script>
     <script src="https://d3js.org/d3.v4.js"></script>

@@ -1,7 +1,7 @@
 const wasmblr_unroll = 16;
 const warmup = 100;
-const target_ms = 200;
-const tuning_ms = 20;
+const target_ms = 50;
+const tuning_ms = 10;
 
 function log(...args) {
   const str = args.reduce((a, b) => {
@@ -39,7 +39,7 @@ async function gen_typed(N) {
   return [add, a, b, c];
 }
 
-async function gen_emscripten(N) {
+async function gen_emscripten(Module, N) {
   function emscripten_array(len) {
     var ptr = Module._malloc(len * 4);
     return [new Float32Array(Module.HEAPF32.buffer, ptr, len), ptr];
@@ -57,12 +57,13 @@ async function gen_emscripten(N) {
   }];
 }
 
-async function gen_wasmblr(N, unroll) {
+async function gen_wasmblr(Module, N, unroll) {
   const wasm = Module._jit_add(N, unroll);
   const wasm_len = Module._jit_add_len(N, unroll);
   const wasm_data = new Uint8Array(Module.HEAP8.buffer, wasm, wasm_len);
   const m = await WebAssembly.compile(wasm_data);
   const instance = await WebAssembly.instantiate(m, {});
+  Module._free(wasm);
 
   let wasmblr_malloc_height = 0;
   let mem = instance.exports.mem;
@@ -80,14 +81,14 @@ async function gen_wasmblr(N, unroll) {
 
   const add = instance.exports.add;
 
-  return [() => add(a_, b_, c_), a, b, c];
+  return [() => add(a_, b_, c_), a, b, c, ()=>{}];
 }
 
-async function gen_wasmblr_tuned(N) {
+async function gen_wasmblr_tuned(Module, N) {
   let best = 0;
-  let best_time = 1e9;
+  let best_time = 0;
   for (let i = 0; Math.pow(2, i) < Math.min(1024, N / 4 + 2); ++i) {
-    let [fn, w_a, w_b, w_c] = await gen_wasmblr(N, Math.pow(2, i));
+    let [fn, w_a, w_b, w_c, cleanup] = await gen_wasmblr(Module, N, Math.pow(2, i));
 
     let diff = 0;
     let num_iters = 10;
@@ -101,12 +102,13 @@ async function gen_wasmblr_tuned(N) {
       diff = t1 - t0;
     }
 
-    if (diff < best_time) {
+    if ((num_iters / diff) > best_time) {
       best = i;
       best_time = num_iters / diff;
     }
+    cleanup();
   }
-  return [...await gen_wasmblr(N, Math.pow(2, best)), Math.pow(2, best)];
+  return [...await gen_wasmblr(Module, N, Math.pow(2, best)), Math.pow(2, best)];
 }
 
 function perf(N, name, fn) {
@@ -129,12 +131,12 @@ function perf(N, name, fn) {
   return gb_sec;
 }
 
-async function benchmark(N) {
+async function benchmark(Module, N) {
   let [pure_fn, p_a, p_b, p_c] = await gen_pure(N);
   let [typed_fn, t_a, t_b, t_c] = await gen_typed(N);
-  let [emscripten_fn, e_a, e_b, e_c, emscripten_cleanup] = await gen_emscripten(N);
-  let [wasmblr_fn, w_a, w_b, w_c] = await gen_wasmblr(N, wasmblr_unroll);
-  let [wasmblr_tuned_fn, wt_a, wt_b, wt_c, unroll] = await gen_wasmblr_tuned(N);
+  let [emscripten_fn, e_a, e_b, e_c, emscripten_cleanup] = await gen_emscripten(Module, N);
+  let [wasmblr_fn, w_a, w_b, w_c, wasmblr_cleanup] = await gen_wasmblr(Module, N, wasmblr_unroll);
+  let [wasmblr_tuned_fn, wt_a, wt_b, wt_c, wasmblr_tuned_cleanup, unroll] = await gen_wasmblr_tuned(Module, N);
 
   for (let i = 0; i < N; ++i) {
     let a = Math.random();
@@ -193,6 +195,8 @@ async function benchmark(N) {
   const wt_gbs = perf(N, `  wasmblr (tuned ${unroll}):`.padEnd(26), wasmblr_tuned_fn);
 
   emscripten_cleanup()
+  wasmblr_cleanup()
+  wasmblr_tuned_cleanup()
 
   return [p_gbs, t_gbs, e_gbs, w_gbs, wt_gbs];
 }
