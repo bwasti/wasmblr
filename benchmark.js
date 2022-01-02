@@ -115,7 +115,7 @@ function perf(N, name, fn) {
     fn();
   }
   const t1 = performance.now();
-  const iters_sec = 1e3 * iters / (t1 - t0);
+  const iters_sec = 1e3 * iters / Math.max(t1 - t0, 1);
   const elem_sec = N * iters_sec;
   const gb_sec = elem_sec * 4 * 3 /* 2 read 1 write */ / 1e9;
   const round = (num) => Math.round(num * 100) / 100
