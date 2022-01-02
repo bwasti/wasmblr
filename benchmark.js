@@ -1,6 +1,7 @@
 const wasmblr_unroll = 16;
 const warmup = 100;
 const target_ms = 200;
+const tuning_ms = 20;
 
 function log(...args) {
   const str = args.reduce((a, b) => {
@@ -87,35 +88,40 @@ async function gen_wasmblr_tuned(N) {
   let best_time = 1e9;
   for (let i = 0; Math.pow(2, i) < Math.min(1024, N / 4 + 2); ++i) {
     let [fn, w_a, w_b, w_c] = await gen_wasmblr(N, Math.pow(2, i));
-    for (let _ = 0; _ < 100; ++_) {
-      fn();
+
+    let diff = 0;
+    let num_iters = 10;
+    while (diff < tuning_ms) {
+      num_iters *= 2;
+      const t0 = performance.now();
+      for (let i = 0; i < num_iters; ++i) {
+        fn();
+      }
+      const t1 = performance.now();
+      diff = t1 - t0;
     }
-    const t = performance.now();
-    for (let _ = 0; _ < 10000; ++_) {
-      fn();
-    }
-    const diff = performance.now() - t;
+
     if (diff < best_time) {
       best = i;
-      best_time = diff;
+      best_time = num_iters / diff;
     }
   }
   return [...await gen_wasmblr(N, Math.pow(2, best)), Math.pow(2, best)];
 }
 
 function perf(N, name, fn) {
-  const w0 = performance.now();
-  for (let i = 0; i < warmup; ++i) {
-    fn();
+  let diff = 0;
+  let num_iters = 10;
+  while (diff < (target_ms / 2)) {
+    num_iters *= 2;
+    const w0 = performance.now();
+    for (let i = 0; i < num_iters; ++i) {
+      fn();
+    }
+    const w1 = performance.now();
+    diff = w1 - w0;
   }
-  const w1 = performance.now();
-  let iters = Math.min(Math.max(warmup * target_ms / (w1 - w0), 1), Math.min(1e9 / N, 1e6));
-  const t0 = performance.now();
-  for (let i = 0; i < iters; ++i) {
-    fn();
-  }
-  const t1 = performance.now();
-  const iters_sec = 1e3 * iters / Math.max(t1 - t0, 1);
+  const iters_sec = 1e3 * num_iters / diff;
   const elem_sec = N * iters_sec;
   const gb_sec = elem_sec * 4 * 3 /* 2 read 1 write */ / 1e9;
   const round = (num) => Math.round(num * 100) / 100
@@ -190,11 +196,3 @@ async function benchmark(N) {
 
   return [p_gbs, t_gbs, e_gbs, w_gbs, wt_gbs];
 }
-
-//Module['onRuntimeInitialized'] = function() {
-//  // any larger and you'll need to recompile to give emscripten more memory
-//  //for (let i = 4; i < 1024 * 1024; i *= 2) {
-//  for (let i of [4, 64, 1024, 16 * 1024, 256 * 1024]) {
-//    //benchmark(i);
-//  }
-//}
