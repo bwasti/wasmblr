@@ -9,6 +9,13 @@
           let b = document.createElement('b');
           b.appendChild(document.createTextNode("Cannot run SIMD on this browser.  Please try Chrome or Firefox (or refresh to try again)"));
           out.appendChild(b);
+              out.appendChild(document.createElement('br'));
+              out.appendChild(document.createTextNode("To run a non-SIMD variant, click here:"));
+              out.appendChild(document.createElement('br'));
+              let a = document.createElement('a');
+              a.href = "https://bwasti.github.io/wasmblr/index_no_simd.html";
+              a.textContent = "Non-SIMD benchmark";
+              out.appendChild(a);
           setTimeout(function() {
               out.appendChild(document.createElement('br'));
               out.appendChild(document.createElement('br'));
