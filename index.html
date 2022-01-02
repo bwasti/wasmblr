@@ -15,6 +15,11 @@
       }
     </style>
     <script>
+      function remove(elem) {
+        while (elem.firstChild) {
+          elem.removeChild(elem.firstChild);
+        }
+      }
       function error() {
         const out = document.querySelector("#graph");
         let b = document.createElement('b');
@@ -55,9 +60,7 @@
           height = 400 - margin.top - margin.bottom;
         d3.select("svg").remove();
         let g = document.querySelector("#graph");
-        while (g.firstChild) {
-          g.removeChild(g.firstChild);
-        }
+        remove(g);
         var res = Object.keys(times);
         var color = d3.scaleOrdinal().domain(res).range(["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#ffff33", "#a65628", "#f781bf", "#999999"]);
         let keys = Object.keys(times);
@@ -154,17 +157,17 @@
       function init(Module) {
         Module._jit_add(4, 1);
         let g = document.querySelector("#graph");
-        while (g.firstChild) {
-          g.removeChild(g.firstChild);
-        }
+        remove(g);
         let button = document.createElement("button");
         button.textContent = "Run Benchmarks";
-        let times = {};
-        let keys = ["Pure JS", "TypedArrays", "Emscripten (simd)", "Wasmblr", "Wasmblr (tuned)"];
-        for (let k of keys) {
-          times[k] = [];
-        }
         button.addEventListener("click", function () {
+          let pre = document.querySelector("pre");
+          remove(pre);
+          let times = {};
+          let keys = ["Pure JS", "TypedArrays", "Emscripten (simd)", "Wasmblr", "Wasmblr (tuned)"];
+          for (let k of keys) {
+            times[k] = [];
+          }
           (async () => {
             for (let i = 2; i < 20; ++i) {
               const result = await benchmark(Module, Math.pow(2, i));
@@ -201,7 +204,10 @@
 
   </head>
   <body>
-    This page benchmarks vector additions.  The techniques used are described in this writeup:
+    This page benchmarks the throughput of vector additions (N fp32 elements, 2 reads 1 write each).
+    <br>
+    <br>
+    The techniques used are described in this writeup:<br>
     <a href="https://jott.live/markdown/javascript_vector_addition">https://jott.live/markdown/javascript_vector_addition</a>
     <br>
     <br>

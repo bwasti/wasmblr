@@ -1,5 +1,4 @@
 const wasmblr_unroll = 16;
-const warmup = 100;
 const target_ms = 50;
 const tuning_ms = 10;
 
@@ -114,6 +113,7 @@ async function gen_wasmblr_tuned(Module, N) {
 function perf(N, name, fn) {
   let diff = 0;
   let num_iters = 10;
+  fn(); // warmup with 1 run
   while (diff < (target_ms / 2)) {
     num_iters *= 2;
     const w0 = performance.now();
