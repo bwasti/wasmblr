@@ -1,7 +1,9 @@
-const Module = require('./add.js');
+const em = require('./add.js');
+var Module;
 const wasmblr_unroll = 16;
 const warmup = 100;
 const target_ms = 1000;
+const simd = true;
 
 async function gen_pure(N) {
   let a = new Array(N).fill(0);
@@ -50,8 +52,8 @@ async function gen_emscripten(N) {
 }
 
 async function gen_wasmblr(N, unroll) {
-  const wasm = Module._jit_add(N, unroll);
-  const wasm_len = Module._jit_add_len(N, unroll);
+  const wasm = Module._jit_add(N, unroll, simd);
+  const wasm_len = Module._jit_add_len(N, unroll, simd);
   const wasm_data = new Uint8Array(Module.HEAP8.buffer, wasm, wasm_len);
   const m = await WebAssembly.compile(wasm_data);
   const instance = await WebAssembly.instantiate(m, {});
@@ -62,6 +64,7 @@ async function gen_wasmblr(N, unroll) {
   function wasmblr_array(len) {
     console.assert((mem.buffer.byteLength - wasmblr_malloc_height) > len * 4);
     let ptr = wasmblr_malloc_height;
+    console.assert(([0, N * 4, N * 8]).indexOf(ptr) > -1, "allocated invalid ptr")
     let array = new Float32Array(mem.buffer, ptr, len);
     wasmblr_malloc_height += len * 4;
     return [array, ptr];
@@ -176,11 +179,12 @@ async function benchmark(N) {
   emscripten_cleanup()
 }
 
-Module['onRuntimeInitialized'] = function() {
+em().then(function(m) {
+  Module = m;
   // any larger and you'll need to recompile to give emscripten more memory
   (async () => {
   for (let i of [4, 64, 1024, 16 * 1024, 256 * 1024]) {
     await benchmark(i);
   }
   })();
-}
+});

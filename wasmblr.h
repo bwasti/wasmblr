@@ -435,9 +435,9 @@ inline V128::operator uint8_t() {
 
 #define STORE_OP(classname, op, opcode)                            \
   inline void classname::op(uint32_t alignment, uint32_t offset) { \
+    (void)cg.pop();                                                \
     auto idx_type = cg.pop();                                      \
     assert(idx_type == cg.i32);                                    \
-    (void)cg.pop();                                                \
     cg.emit(opcode);                                               \
     cg.emit(cg.encode_unsigned(alignment));                        \
     cg.emit(cg.encode_unsigned(offset));                           \
