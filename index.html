@@ -1,36 +1,174 @@
-<script src="add.js"></script>
-<script src="benchmark.js"></script>
-<script>
-function error() {
-  document.querySelector('pre').textContent = "Cannot run SIMD on this browser.  Please try Chrome or Firefox";
-}
-window.addEventListener('load', function() {
-  Module['onRuntimeInitialized'] = function() {
-  try {
-      Module._jit_add(4, 1);
-      let button = document.createElement('button');
-      button.textContent = 'Run Benchmarks';
-      button.addEventListener('click', function() {
-        (async () => {
-        for (let i = 2; i < 18; ++i) {
-          await benchmark(Math.pow(2, i));
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      * {
+        font-family: monospace;
+      }
+      body {
+        text-align: center;
+      }
+      button {
+        margin-bottom: 5px;
+      }
+    </style>
+    <script src="add.js"></script>
+    <script src="benchmark.js"></script>
+    <script src="https://d3js.org/d3.v4.js"></script>
+
+    <script>
+      function error() {
+        document.querySelector("pre").textContent = "Cannot run SIMD on this browser.  Please try Chrome or Firefox (or refresh to try again)";
+      }
+
+      function buildGraph(times) {
+        var margin = { top: 10, right: 30, bottom: 30, left: 60 },
+          width = 460 - margin.left - margin.right,
+          height = 400 - margin.top - margin.bottom;
+        d3.select("svg").remove();
+        let g = document.querySelector("#graph");
+        while (g.firstChild) {
+          g.removeChild(g.firstChild);
         }
-        })();
+        var res = Object.keys(times);
+        var color = d3.scaleOrdinal().domain(res).range(["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#ffff33", "#a65628", "#f781bf", "#999999"]);
+        let keys = Object.keys(times);
+        keys.sort();
+        for (let k of keys) {
+          let span = document.createElement("span");
+          span.style.color = color(k);
+          span.style.padding = "2px";
+          span.textContent = k;
+          g.appendChild(span);
+        }
+        g.appendChild(document.createElement("br"));
+        var svg = d3
+          .select("#graph")
+          .append("svg")
+          .attr("width", width + margin.left + margin.right)
+          .attr("height", height + margin.top + margin.bottom)
+          .append("g")
+          .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        let d = [];
+        let all_data = [];
+        for (let k of res) {
+          d.push({
+            key: k,
+            values: times[k],
+          });
+          all_data = all_data.concat(times[k]);
+        }
+
+        var x = d3
+          .scaleLinear()
+          .domain(
+            d3.extent(all_data, function (d) {
+              return d[0];
+            })
+          )
+          .range([0, width]);
+        svg
+          .append("g")
+          .attr("transform", "translate(0," + height + ")")
+          .call(d3.axisBottom(x).ticks(5));
+
+        // text label for the x axis
+        svg
+          .append("text")
+          .attr("transform", "translate(" + width / 2 + " ," + (height + margin.top + 20) + ")")
+          .style("text-anchor", "middle")
+          .text("Vector Size (2^N)");
+
+        var y = d3
+          .scaleLinear()
+          .domain([
+            0,
+            d3.max(all_data, function (d) {
+              return d[1];
+            }),
+          ])
+          .range([height, 0]);
+        svg.append("g").call(d3.axisLeft(y));
+
+        // text label for the y axis
+        svg
+          .append("text")
+          .attr("transform", "rotate(-90)")
+          .attr("y", 0 - margin.left)
+          .attr("x", 0 - height / 2)
+          .attr("dy", "1em")
+          .style("text-anchor", "middle")
+          .text("GB/s");
+
+        let lines = svg.selectAll(".line").data(d);
+
+        lines
+          .enter()
+          .append("path")
+          .attr("fill", "none")
+          .attr("stroke", function (d) {
+            return color(d.key);
+          })
+          .attr("stroke-width", 1.5)
+          .attr("d", function (d) {
+            return d3
+              .line()
+              .x(function (d) {
+                return x(d[0]);
+              })
+              .y(function (d) {
+                return y(d[1]);
+              })(d.values);
+          })
+          .merge(lines)
+          .transition()
+          .duration(500);
+      }
+
+      function init() {
+        Module._jit_add(4, 1);
+        let button = document.createElement("button");
+        button.textContent = "Run Benchmarks";
+        let times = {};
+        let keys = ["Pure JS", "TypedArrays", "Emscripten (simd)", "Wasmblr", "Wasmblr (tuned)"];
+        for (let k of keys) {
+          times[k] = [];
+        }
+        button.addEventListener("click", function () {
+          (async () => {
+            for (let i = 2; i < 18; ++i) {
+              const result = await benchmark(Math.pow(2, i));
+              for (let k of keys) {
+                times[k].push([i, result[keys.indexOf(k)]]);
+              }
+              buildGraph(times);
+            }
+          })();
+        });
+        document.body.prepend(button);
+      }
+
+      window.addEventListener("load", function () {
+        Module["onAbort"] = function (e) {
+          if (e.indexOf("called before runtime initialization") > 0) {
+            Module["onRuntimeInitialized"] = init;
+            return;
+          }
+          console.log(e);
+          error();
+        };
+        try {
+          init();
+        } catch {
+          Module["onRuntimeInitialized"] = init;
+        }
       });
-      document.body.prepend(button);
-  } catch {
-    error();
-    return;
-  }
-  };
-  Module['onAbort'] = function() {
-    error();
-  };
+    </script>
+  </head>
+  <body>
+    <div id="graph"></div>
+    <pre></pre>
+  </body>
+</html>
 
-});
-</script>
-
-<body>
-<pre>
-</pre>
-</body>

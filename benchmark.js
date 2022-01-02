@@ -1,10 +1,11 @@
-//const Module = require('./add.js');
 const wasmblr_unroll = 16;
 const warmup = 100;
-const target_ms = 1000;
+const target_ms = 200;
 
 function log(...args) {
-  const str = args.reduce((a, b) => { return a + " " + b; }, "");
+  const str = args.reduce((a, b) => {
+    return a + " " + b;
+  }, "");
   document.querySelector('pre').appendChild(document.createTextNode(str));
   document.querySelector('pre').appendChild(document.createElement('br'));
 }
@@ -118,7 +119,8 @@ function perf(N, name, fn) {
   const elem_sec = N * iters_sec;
   const gb_sec = elem_sec * 4 * 3 /* 2 read 1 write */ / 1e9;
   const round = (num) => Math.round(num * 100) / 100
-  log(name, round(iters_sec), "iters/sec", `(${round(gb_sec)} GB/s)`);
+  log(name, `${round(gb_sec)} GB/s`, `(${round(iters_sec)} iters/sec)`);
+  return gb_sec;
 }
 
 async function benchmark(N) {
@@ -159,28 +161,34 @@ async function benchmark(N) {
       return true;
     }
     if (!check(p_c, "pure")) {
+      console.log("error");
       return;
     }
     if (!check(e_c, "emscripten")) {
+      console.log("error");
       return;
     }
     if (!check(w_c, "wasmblr")) {
+      console.log("error");
       return;
     }
     if (!check(wt_c, "wasmblr (tuned)")) {
+      console.log("error");
       return;
     }
   }
 
   log();
   log("benchmarking vec add of size", N);
-  perf(N, "  pure javascript:        ", pure_fn);
-  perf(N, "  typed arrays:           ", typed_fn);
-  perf(N, "  emscripten (simd):      ", emscripten_fn);
-  perf(N, "  wasmblr:                ", wasmblr_fn);
-  perf(N, `  wasmblr (tuned ${unroll}):`.padEnd(26), wasmblr_tuned_fn);
+  const p_gbs = perf(N, "  pure javascript:        ", pure_fn);
+  const t_gbs = perf(N, "  typed arrays:           ", typed_fn);
+  const e_gbs = perf(N, "  emscripten (simd):      ", emscripten_fn);
+  const w_gbs = perf(N, "  wasmblr:                ", wasmblr_fn);
+  const wt_gbs = perf(N, `  wasmblr (tuned ${unroll}):`.padEnd(26), wasmblr_tuned_fn);
 
   emscripten_cleanup()
+
+  return [p_gbs, t_gbs, e_gbs, w_gbs, wt_gbs];
 }
 
 //Module['onRuntimeInitialized'] = function() {
