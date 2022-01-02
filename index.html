@@ -25,6 +25,16 @@
         let b = document.createElement('b');
         b.appendChild(document.createTextNode("Cannot run SIMD on this browser.  Please try Chrome or Firefox (or refresh to try again)"));
         out.appendChild(b);
+        setTimeout(function() {
+          out.appendChild(document.createElement('br'));
+          out.appendChild(document.createElement('br'));
+          out.appendChild(document.createTextNode("To run in node.js, please grab the code here:"));
+          out.appendChild(document.createElement('br'));
+          let a = document.createElement('a');
+          a.href = "https://github.com/bwasti/wasmblr/tree/main/emscripten_example";
+          a.textContent = "https://github.com/bwasti/wasmblr/tree/main/emscripten_example";
+          out.appendChild(a);
+        }, 500);
         function addImg(url) {
           const image = document.createElement('img');
           image.src = url;
@@ -32,26 +42,20 @@
           image.style.maxWidth = "800px";
           out.appendChild(image);
         }
-        out.appendChild(document.createElement('br'));
-        out.appendChild(document.createElement('br'));
-        out.appendChild(document.createTextNode("To run in node.js, please grab the code here:"));
-        out.appendChild(document.createElement('br'));
-        let a = document.createElement('a');
-        a.href = "https://github.com/bwasti/wasmblr/tree/main/emscripten_example";
-        a.textContent = "https://github.com/bwasti/wasmblr/tree/main/emscripten_example";
-        out.appendChild(a);
-        out.appendChild(document.createElement('br'));
-        out.appendChild(document.createElement('br'));
-        out.appendChild(document.createTextNode("Alternatively, here are sample results in Firefox:"));
-        out.appendChild(document.createElement('br'));
-        out.appendChild(document.createElement('br'));
-        addImg("https://i.imgur.com/rIjkz6D.png");
-        out.appendChild(document.createElement('br'));
-        out.appendChild(document.createTextNode("and Chrome:"));
-        out.appendChild(document.createElement('br'));
-        out.appendChild(document.createElement('br'));
-        addImg("https://i.imgur.com/0VA6ioi.png");
-        out.appendChild(document.createElement('br'));
+        setTimeout(function() {
+          out.appendChild(document.createElement('br'));
+          out.appendChild(document.createElement('br'));
+          out.appendChild(document.createTextNode("Alternatively, here are sample results in Firefox:"));
+          out.appendChild(document.createElement('br'));
+          out.appendChild(document.createElement('br'));
+          addImg("https://i.imgur.com/rIjkz6D.png");
+          out.appendChild(document.createElement('br'));
+          out.appendChild(document.createTextNode("and Chrome:"));
+          out.appendChild(document.createElement('br'));
+          out.appendChild(document.createElement('br'));
+          addImg("https://i.imgur.com/0VA6ioi.png");
+          out.appendChild(document.createElement('br'));
+        }, 1000);
       }
 
       function buildGraph(times) {
@@ -181,19 +185,13 @@
         document.getElementById("button_div").appendChild(button);
       }
 
-      function tryInit() {
-        try {
-          init();
-        } catch(e) {
-          error();
-        }
-      }
-
       window.addEventListener("load", function () {
         try {
-          createMyModule().then(init).catch(e=>{error()});
+          createMyModule().then(init).catch(e=>{
+            setTimeout(error, 500);
+          });
         } catch(e) {
-          error();
+          setTimeout(error, 500);
         };
       });
     </script>
@@ -203,8 +201,9 @@
     <script src="https://d3js.org/d3.v4.js"></script>
 
   </head>
+  <title>WebAssembly Throughput Benchmark</title>
   <body>
-    This page benchmarks the throughput of vector additions (N fp32 elements, 2 reads 1 write each).
+    This page benchmarks the throughput of vector additions (N fp32 elements, 2 reads 1 write each) in JavaScript using TypedArrays and WebAssembly.
     <br>
     <br>
     The techniques used are described in this writeup:<br>
