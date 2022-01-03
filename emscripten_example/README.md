@@ -1,6 +1,6 @@
 # Emscripten Integration Demo
 
-A detailed writeup of the contents of this folder can be found here: https://jott.live/markdown/javascript_vector_addition
+A detailed writeup of the contents of this folder can be found here: https://jott.live/markdown/wasm_vector_addition
 
 See `add.cc` for various implementations of vector addition and `Makefile` for the build command (I added `-O3 -msimd128` to make the benchmark more competitve).
 To try this example, ensure that `emcc` is in your path.
