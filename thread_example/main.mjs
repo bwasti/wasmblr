@@ -1,4 +1,4 @@
-async function test() {
+async function launch_threads() {
   const response = await fetch('./square.wasm');
   const wasm = await response.arrayBuffer();
   const wasm_module = await WebAssembly.compile(wasm);
@@ -27,12 +27,14 @@ async function test() {
   worker0.addEventListener('message', function(e) {
     w0_done = true;
     if (w1_done) {
+      document.getElementById('output').textContent = output[0] + ", " + output[1];
       console.log(output[0], output[1]);
     }
   });
   worker1.addEventListener('message', function(e) {
     w1_done = true;
     if (w0_done) {
+      document.getElementById('output').textContent = output[0] + ", " + output[1];
       console.log(output[0], output[1]);
     }
   });
@@ -40,4 +42,4 @@ async function test() {
   worker1.postMessage([wasm_module, memory, 4, 8]);
 }
 
-test();
+launch_threads();

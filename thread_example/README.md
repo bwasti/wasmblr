@@ -36,5 +36,5 @@ python3 -m server
 
 ## Now open the browser and look in the console
 
-Navigate to `localhost:8000/test.html` and open the console.
-We are looking at the result of `test.mjs` and `worker.js` interacting.
+Navigate to `localhost:8000` and you should see the output of each thread (both around 0.09).
+We are looking at the result of `main.mjs` and `worker.js` interacting.
