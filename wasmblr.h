@@ -437,7 +437,7 @@ inline V128::operator uint8_t() {
 
 #define STORE_OP(classname, op, opcode)                            \
   inline void classname::op(uint32_t alignment, uint32_t offset) { \
-    (void)cg.pop();                                                \
+    auto val_type = cg.pop();                                      \
     auto idx_type = cg.pop();                                      \
     assert(idx_type == cg.i32);                                    \
     cg.emit(opcode);                                               \
@@ -806,10 +806,10 @@ inline std::vector<uint8_t> CodeGenerator::emit() {
 			assert(!memory.is_shared && "shared memory must have a max size");
       concat(import_section_bytes, encode_unsigned(memory.min));
 		}
+    emitted_bytes.emplace_back(0x2);
+    concat(emitted_bytes, encode_unsigned(import_section_bytes.size()));
+    concat(emitted_bytes, import_section_bytes);
 	}
-  emitted_bytes.emplace_back(0x2);
-  concat(emitted_bytes, encode_unsigned(import_section_bytes.size()));
-  concat(emitted_bytes, import_section_bytes);
 
   std::vector<uint8_t> function_section_bytes;
   concat(function_section_bytes, encode_unsigned(functions_.size()));
