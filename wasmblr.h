@@ -190,8 +190,9 @@ class Memory {
  public:
   Memory& operator()(uint32_t min);
   Memory& operator()(uint32_t min, uint32_t max);
-  void export_(std::string);
-  void import_(std::string, std::string);
+  Memory& export_(std::string);
+  Memory& shared(bool = true);
+  Memory& import_(std::string, std::string);
   void size();
   void grow();
 
@@ -200,6 +201,7 @@ class Memory {
   CodeGenerator& cg;
   uint32_t min = 0;
   uint32_t max = 0;
+  bool is_shared = false;
   std::string a_string = "";
   std::string b_string = "";
   bool is_import() const { return a_string.size() && b_string.size(); }
@@ -678,19 +680,26 @@ inline Memory& Memory::operator()(uint32_t min_) {
 inline Memory& Memory::operator()(uint32_t min_, uint32_t max_) {
   assert(min == 0 && max == 0);
   min = min_;
+  max = max_;
   return *this;
 }
 
-inline void Memory::export_(std::string a) {
+inline Memory& Memory::export_(std::string a) {
   assert(!(is_import() || is_export()) && "already set");
   a_string = a;
+  return *this;
 }
 
-inline void Memory::import_(std::string a, std::string b) {
-  assert(0 && "not yet implemented, please file an issue :)");
+inline Memory& Memory::shared(bool make_shared) {
+  is_shared = make_shared;
+  return *this;
+}
+
+inline Memory& Memory::import_(std::string a, std::string b) {
   assert(!(is_import() || is_export()) && "already set");
   a_string = a;
   b_string = b;
+  return *this;
 }
 
 inline void Memory::size() {
@@ -779,6 +788,29 @@ inline std::vector<uint8_t> CodeGenerator::emit() {
   concat(emitted_bytes, encode_unsigned(type_section_bytes.size()));
   concat(emitted_bytes, type_section_bytes);
 
+	std::vector<uint8_t> import_section_bytes;
+  if (memory.is_import()) {
+		concat(import_section_bytes, encode_unsigned(1)); // 1 import
+    concat(import_section_bytes, encode_string(memory.a_string));
+    concat(import_section_bytes, encode_string(memory.b_string));
+		import_section_bytes.emplace_back(0x2); // memory flag
+    if (memory.min && memory.max) {
+			if (memory.is_shared) {
+				import_section_bytes.emplace_back(0x3);
+			} else {
+        import_section_bytes.emplace_back(0x01);
+			}
+      concat(import_section_bytes, encode_unsigned(memory.min));
+      concat(import_section_bytes, encode_unsigned(memory.max));
+		} else {
+			assert(!memory.is_shared && "shared memory must have a max size");
+      concat(import_section_bytes, encode_unsigned(memory.min));
+		}
+	}
+  emitted_bytes.emplace_back(0x2);
+  concat(emitted_bytes, encode_unsigned(import_section_bytes.size()));
+  concat(emitted_bytes, import_section_bytes);
+
   std::vector<uint8_t> function_section_bytes;
   concat(function_section_bytes, encode_unsigned(functions_.size()));
   for (auto i = 0; i < functions_.size(); ++i) {
@@ -789,13 +821,18 @@ inline std::vector<uint8_t> CodeGenerator::emit() {
   concat(emitted_bytes, function_section_bytes);
 
   std::vector<uint8_t> memory_section_bytes;
-  if (memory.min || memory.max) {
+  if (!memory.is_import() && (memory.min || memory.max)) {
     memory_section_bytes.emplace_back(0x01);  // always 1 memory
     if (memory.min && memory.max) {
-      memory_section_bytes.emplace_back(0x01);
+      if (memory.is_shared) {
+        memory_section_bytes.emplace_back(0x03);
+      } else {
+        memory_section_bytes.emplace_back(0x01);
+      }
       concat(memory_section_bytes, encode_unsigned(memory.min));
       concat(memory_section_bytes, encode_unsigned(memory.max));
     } else {
+			assert(!memory.is_shared && "shared memory must have a max size");
       memory_section_bytes.emplace_back(0x00);
       concat(memory_section_bytes, encode_unsigned(memory.min));
     }
