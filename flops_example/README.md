@@ -4,6 +4,8 @@ This file sweeps through a range of arithmetic intensities
 to help determine the best configurations for running MAC-based
 operations such as matrix multiplication or convolution.
 
+To run it in browser right now: https://bwasti.github.io/wasmblr/flops/
+
 ## Build the jit.js file
 
 ```
