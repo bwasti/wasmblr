@@ -75,8 +75,8 @@ async function launch_mac_benchmark() {
   let best_gflops = 0;
   let best_str = '';
   for (let mac_per_load of [1, 2, 4, 8, 16, 32]) {
-    for (let loads_per_loop of [1, 2, 4, 8, 16, 32]) {
-      for (let loops of [1, 16, 64, 128]) {
+    for (let loads_per_loop of [1, 2, 4, 8, 16, 32, 64, 128]) {
+      for (let loops of [1, 16, 64, 128, 256, 512]) {
         for (let simd of simd_support) {
           const [fn, a, b, c] = await jit(Module, mac_per_load, loads_per_loop, loops, simd);
           const ops = loops * loads_per_loop * mac_per_load * (simd ? 4 : 1);
