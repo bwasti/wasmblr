@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, user-scalable=no">
+  </head>
+  <body>
+    <script src="jit.js"></script>
+    <script src="main.js"></script>
+    <script>
+    function run() {
+      launch_mac_benchmark();
+    }
+    </script>
+    <code>
+    This page helps determine peak floating point operations per second
+    via chained multiply-adds.
+    <a href="https://github.com/bwasti/wasmblr/tree/main/flops_example">[source code]</a>
+    </code>
+    <button onclick="run();">run benchmark</button>
+    <br>
+    <b><code id="best"></code></b>
+    <code id="output"></code>
+  </body>
+</html>
