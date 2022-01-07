@@ -5,6 +5,10 @@ This library makes it easier to generate web assembly binaries directly from C++
 Useful for JIT compilation from within projects compiled with Emscripten.
 For examples see below, or read the `test.cc` file.
 
+Some benchmarks:
+- Measure Bandwidth (cache not flushed): https://bwasti.github.io/wasmblr
+- Measure Peak Theoretical FLOPs: https://bwasti.github.io/wasmblr/flops
+
 Contributions welcome!
 
 # Usage
