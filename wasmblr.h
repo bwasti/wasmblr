@@ -18,8 +18,9 @@ struct CodeGenerator;
 class Local {
  public:
   int operator()(uint8_t type);
-  void set(int idx);
   void get(int idx);
+  void set(int idx);
+  void tee(int idx);
 
  private:
   Local(CodeGenerator& cg_) : cg(cg_) {}
@@ -379,6 +380,22 @@ inline void Local::get(int idx) {
 
   cg.emit(0x20);
   cg.emit(cg.encode_unsigned(idx));
+}
+
+inline void Local::tee(int idx) {
+  auto t = cg.pop();
+  const auto& input_types = cg.input_types();
+  auto expected_type = [&]() {
+    if (idx < input_types.size()) {
+      return input_types.at(idx);
+    }
+    return cg.locals().at(idx - input_types.size());
+  }();
+  assert(expected_type == t && "can't set local to this value (wrong type)");
+
+  cg.emit(0x22);
+  cg.emit(cg.encode_unsigned(idx));
+  cg.push(expected_type);
 }
 
 inline I32::operator uint8_t() {
