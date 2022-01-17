@@ -1,12 +1,9 @@
-emsc = require('./mm.js');
-const { performance } = require('perf_hooks');
-
-
 function log(...args) {
   const str = args.reduce((a, b) => {
     return a + " " + b;
   }, "");
-  console.log(str);
+  document.querySelector('#output').appendChild(document.createTextNode(str));
+  document.querySelector('#output').appendChild(document.createElement('br'));
 }
 
 async function jit(Module, M, N, K, Mu, Nu, Ku) {
@@ -44,13 +41,13 @@ async function bench(m, M, N, K, Mu, Nu, Ku) {
     c[i] = 0;
   }
   fn();
-  //console.log(c);
+  console.log(c);
   const ref_c = ref_mm(a, b, M, N, K);
   let max_diff = 0;
   for (let i = 0; i <  M * N; ++i) {
     max_diff = Math.max(max_diff, Math.abs(ref_c[i] - c[i]));
   }
-  //console.log("max diff", max_diff);
+  console.log("max diff", max_diff);
   //console.log(a, b, c);
   for (let i = 0; i < 100; ++i) {
     fn();
@@ -61,12 +58,13 @@ async function bench(m, M, N, K, Mu, Nu, Ku) {
   }
   const diff = performance.now() - t;
   return 1e3 * N * N * N * 2 * 1000 / diff / 1e9;
+  
 }
 
 async function init() {
-  let mod = await emsc();
-  //log("loaded");
-  const N = 512;
+  let mod = await createMyModule();
+  log("loaded");
+  const N = 128;
   const M = N;
   const K = N;
   let gflops = await bench(mod, M, N, K, 4, 2, 1);
@@ -81,5 +79,6 @@ async function init() {
   //}
 }
 
-init();
-
+window.addEventListener('load', function() {
+    init();
+});
