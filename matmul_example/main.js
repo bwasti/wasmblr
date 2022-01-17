@@ -67,16 +67,16 @@ async function init() {
   const N = 128;
   const M = N;
   const K = N;
-  let gflops = await bench(mod, M, N, K, 4, 2, 1);
-  log("gflops", gflops);
-  //for (let m of [1, 2, 4, 8]) {
-  //  for (let n of [1, 2, 4, 8, 16]) {
-  //    for (let k of [1, 2, 4]) {
-  //      let gflops = await bench(mod, M, N, K, m, n, k);
-  //      log(m, n, k, "gflops", gflops);
-  //    }
-  //  }
-  //}
+  //let gflops = await bench(mod, M, N, K, 4, 2, 1);
+  //log("gflops", gflops);
+  for (let m of [1, 2, 4, 8]) {
+    for (let n of [1, 2, 4, 8, 16]) {
+      for (let k of [1, 2, 4]) {
+        let gflops = await bench(mod, M, N, K, m, n, k);
+        log(m, n, k, "gflops", gflops);
+      }
+    }
+  }
 }
 
 window.addEventListener('load', function() {
