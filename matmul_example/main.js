@@ -33,7 +33,7 @@ function ref_mm(a, b, M, N, K) {
 }
 
 async function bench(m, M, N, K, Mu, Nu, Ku) {
-  const [fn, a, b, c] = await jit(m, N, N, N, Mu, Nu, Ku);
+  const [fn, a, b, c] = await jit(m, M, N, K, Mu, Nu, Ku);
   //log("jit done");
   for (let i = 0; i < N*N; ++i) {
     a[i] = Math.random();
@@ -41,24 +41,25 @@ async function bench(m, M, N, K, Mu, Nu, Ku) {
     c[i] = 0;
   }
   fn();
-  console.log(c);
+  //console.log(c);
   const ref_c = ref_mm(a, b, M, N, K);
   let max_diff = 0;
   for (let i = 0; i <  M * N; ++i) {
     max_diff = Math.max(max_diff, Math.abs(ref_c[i] - c[i]));
   }
   console.log("max diff", max_diff);
-  //console.log(a, b, c);
-  for (let i = 0; i < 100; ++i) {
+  if (max_diff > 0.1) {
+    log("error! max diff", max_diff);
+  }
+  for (let i = 0; i < 50; ++i) {
     fn();
   }
   const t = performance.now();
-  for (let _ = 0; _ < 1000; ++_) {
+  for (let _ = 0; _ < 500; ++_) {
     fn();
   }
   const diff = performance.now() - t;
-  return 1e3 * N * N * N * 2 * 1000 / diff / 1e9;
-  
+  return 1e3 * N * N * N * 2 * 500 / diff / 1e9;
 }
 
 async function init() {
@@ -67,18 +68,35 @@ async function init() {
   const N = 128;
   const M = N;
   const K = N;
-  //let gflops = await bench(mod, M, N, K, 4, 2, 1);
-  //log("gflops", gflops);
-  for (let m of [1, 2, 4, 8]) {
-    for (let n of [1, 2, 4, 8, 16]) {
-      for (let k of [1, 2, 4]) {
+  let best_gflops = 0;
+  let best_str = '';
+  // If you want to test a specific size, uncomment this code:
+  //let m = 2, n = 4, k = 2;
+  //let gflops = await bench(mod, M, N, K, m, n, k);
+  //log(m, n, k, "gflops", gflops);
+  //return;
+  for (let m of [1, 2, 4, 8, 16, 32]) {
+    for (let n of [1, 2, 4, 8, 16, 32]) {
+      for (let k of [1, 2, 4, 8, 16, 32]) {
+        if (k > K) { continue; }
+        if (m > M) { continue; }
+        if (n * 4 > N) { continue; }
         let gflops = await bench(mod, M, N, K, m, n, k);
+        if (gflops > best_gflops) {
+          best_gflops = gflops;
+          let pre = document.getElementById("highlight");
+          best_str = `best gflops: ${best_gflops} (${m}, ${n}, ${k})`;
+          pre.textContent = best_str;
+        }
         log(m, n, k, "gflops", gflops);
       }
     }
   }
+  let pre = document.getElementById("highlight");
+  let str = `(done) ${best_str}`;
+  pre.textContent = str;
 }
 
 window.addEventListener('load', function() {
-    init();
+  init();
 });
