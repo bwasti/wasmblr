@@ -1,5 +1,112 @@
 #include "wasmblr.h"
 
+struct MMGenSimple : public wasmblr::CodeGenerator {
+  MMGenSimple(int M, int N, int K) {
+    auto pages = (M * N + K * N + M * K) * 4 / (1 << 16) + 1;
+    auto A_off = 0;
+    auto B_off = M * K * 4;
+    auto C_off = (M * K + K * N) * 4;
+    memory(pages).export_("mem");
+    auto fn = function({}, {}, [=]() {
+      auto m = local(i32);
+      auto n = local(i32);
+      auto k = local(i32);
+
+      // loop over m
+      i32.const_(0);
+      local.set(m);
+      loop(void_);
+
+      // loop over n
+      i32.const_(0);
+      local.set(n);
+      loop(void_);
+
+      // loop over k
+      i32.const_(0);
+      local.set(k);
+      loop(void_);
+
+      // load original value of C
+      local.get(m);
+      i32.const_(N);
+      i32.mul();
+      local.get(n);
+      i32.add();
+      i32.const_(4);
+      i32.mul();
+      f32.load(0, C_off); // stack: [C]
+
+      // load value of A
+      local.get(m);
+      i32.const_(K);
+      i32.mul();
+      local.get(k);
+      i32.add();
+      i32.const_(4);
+      i32.mul();
+      f32.load(0, A_off); // stack: [A, C]
+
+      // load value of B
+      local.get(k);
+      i32.const_(N);
+      i32.mul();
+      local.get(n);
+      i32.add();
+      i32.const_(4);
+      i32.mul();
+      f32.load(0, B_off); // stack: [B, A, C]
+
+      f32.mul(); // stack: [B * A, C]
+      f32.add(); // stack: [B * A + C]
+      auto c = local(f32);
+      local.set(c); // save temporarily
+
+      // store new value to C
+      local.get(m);
+      i32.const_(N);
+      i32.mul();
+      local.get(n);
+      i32.add();
+      i32.const_(4);
+      i32.mul();
+      local.get(c); // push the saved value back to the stack
+      f32.store(0, C_off);
+
+      // loop tail for k
+      local.get(k);
+      i32.const_(1);
+      i32.add();
+      local.tee(k);
+      i32.const_(K);
+      i32.lt_u();
+      br_if(0);
+      end();
+
+      // loop tail for n
+      local.get(n);
+      i32.const_(1);
+      i32.add();
+      local.tee(n);
+      i32.const_(N);
+      i32.lt_u();
+      br_if(0);
+      end();
+
+      // loop tail for m
+      local.get(m);
+      i32.const_(1);
+      i32.add();
+      local.tee(m);
+      i32.const_(M);
+      i32.lt_u();
+      br_if(0);
+      end(); // M
+    });
+    export_(fn, "mm");
+  }
+};
+
 struct MMGen : public wasmblr::CodeGenerator {
   MMGen(int M, int N, int K, int M_unroll, int N_unroll, int K_unroll) {
     assert(M_unroll <= M && "Invalid M unroll size");
@@ -152,6 +259,20 @@ struct MMGen : public wasmblr::CodeGenerator {
 };
 
 extern "C" {
+
+uint8_t *jit_mm_naive(int M, int N, int K) {
+  MMGenSimple mm(M, N, K);
+  auto bytes = mm.emit();
+  uint8_t *out = (uint8_t *)malloc(bytes.size());
+  memcpy(out, bytes.data(), bytes.size());
+  return out;
+}
+
+int jit_mm_naive_len(int M, int N, int K) {
+  MMGenSimple mm(M, N, K);
+  auto bytes = mm.emit();
+  return bytes.size();
+}
 
 uint8_t *jit_mm(int M, int N, int K, int Mu, int Nu, int Ku) {
   MMGen mm(M, N, K, Mu, Nu, Ku);
