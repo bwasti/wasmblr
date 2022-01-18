@@ -3,6 +3,8 @@
 This folder contains an example using emscripten and wasmblr to generate various tuned matrix multiplication implementations
 on the fly in the browser.
 
+A writeup can be found here: https://jott.live/markdown/mm_wasm
+
 To use the demo ensure that `emcc` is in your path.
 
 ```
