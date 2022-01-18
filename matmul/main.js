@@ -51,11 +51,12 @@ async function bench(m, M, N, K, Mu, Nu, Ku) {
   if (max_diff > 0.1) {
     log("error! max diff", max_diff);
   }
-  for (let i = 0; i < 10; ++i) {
+  // ~0.025 if we hit 40gflops, ~0.1 if we hit 10gflops
+  const iters = 1e9 / (M * N * K * 2);
+  const warmup = Math.max(1, Math.round(iters / 10));
+  for (let i = 0; i < warmup; ++i) {
     fn();
   }
-  // ~0.1if we hit 40gflops
-  const iters = 4e9 / (M * N * K * 2);
   const t = performance.now();
   for (let _ = 0; _ < iters; ++_) {
     fn();
