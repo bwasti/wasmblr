@@ -8,6 +8,7 @@ For examples see below, or read the `test.cc` file.
 Some benchmarks:
 - Measure Bandwidth (cache not flushed): https://bwasti.github.io/wasmblr
 - Measure Peak Theoretical FLOPs: https://bwasti.github.io/wasmblr/flops
+- Measure Matrix Multiplication Performance (GFLOPs): https://bwasti.github.io/wasmblr/matmul/
 
 Contributions welcome!
 
