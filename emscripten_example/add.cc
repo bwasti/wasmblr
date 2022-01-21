@@ -1,6 +1,6 @@
 #include "wasmblr.h"
 
-std::vector<uint8_t> gen_add_hardcode(int len, int unroll) {
+wasmblr::vector<uint8_t> gen_add_hardcode(int len, int unroll) {
   assert(len % (unroll * 4) == 0);
   wasmblr::CodeGenerator cg;
   // we hardcode the inputs to be
@@ -46,7 +46,7 @@ std::vector<uint8_t> gen_add_hardcode(int len, int unroll) {
   return cg.emit();
 }
 
-std::vector<uint8_t> gen_add_loop(int len) {
+wasmblr::vector<uint8_t> gen_add_loop(int len) {
   assert(len % 4 == 0);
   wasmblr::CodeGenerator cg;
   auto pages = (len * 3 * 4) / (1 << 16) + 1;
@@ -92,7 +92,7 @@ std::vector<uint8_t> gen_add_loop(int len) {
   return cg.emit();
 }
 
-std::vector<uint8_t> gen_add_unroll(int len) {
+wasmblr::vector<uint8_t> gen_add_unroll(int len) {
   assert(len % 4 == 0);
   wasmblr::CodeGenerator cg;
   auto pages = (len * 3 * 4) / (1 << 16) + 1;
@@ -117,7 +117,7 @@ std::vector<uint8_t> gen_add_unroll(int len) {
   return cg.emit();
 }
 
-std::vector<uint8_t> gen_add_mix_no_simd(int len, int unroll) {
+wasmblr::vector<uint8_t> gen_add_mix_no_simd(int len, int unroll) {
   if (len < unroll) {
     unroll = len;
   }
@@ -177,7 +177,7 @@ std::vector<uint8_t> gen_add_mix_no_simd(int len, int unroll) {
   return cg.emit();
 }
 
-std::vector<uint8_t> gen_add_mix(int len, int unroll) {
+wasmblr::vector<uint8_t> gen_add_mix(int len, int unroll) {
   assert(len % (unroll * 4) == 0);
   wasmblr::CodeGenerator cg;
   auto pages = (len * 3 * 4) / (1 << 16) + 1;
@@ -234,7 +234,7 @@ std::vector<uint8_t> gen_add_mix(int len, int unroll) {
   return cg.emit();
 }
 
-std::vector<uint8_t> gen_add(int len, int unroll, bool simd) {
+wasmblr::vector<uint8_t> gen_add(int len, int unroll, bool simd) {
   if (!simd) {
     return gen_add_mix_no_simd(len, unroll);
   }
