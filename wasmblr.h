@@ -1,35 +1,153 @@
 #pragma once
 
-#include <array>
+#ifdef ASSERT
 #include <cassert>
-#include <cstdint>
-#include <stack>
-#include <string>
-#include <unordered_map>
-#include <vector>
+#else
+#define assert(x)
+#endif
+#include <cstdlib>
+#include <functional>
+#include <iterator>
 
 namespace wasmblr {
 
-constexpr std::array<uint8_t, 4> magic_module_header = {0x00, 0x61, 0x73, 0x6d};
-constexpr std::array<uint8_t, 4> module_version = {0x01, 0x00, 0x00, 0x00};
+template <typename T> struct vector_iterator {
+  using iterator_category = std::forward_iterator_tag;
+  using difference_type = std::ptrdiff_t;
+  using value_type = T;
+  using pointer = T *;
+  using reference = T &;
+  vector_iterator(pointer ptr) : ptr_(ptr) {}
+  reference operator*() const { return *ptr_; }
+  pointer operator->() { return ptr_; }
+
+  vector_iterator &operator++() {
+    ptr_++;
+    return *this;
+  }
+  vector_iterator operator++(int) {
+    vector_iterator tmp = *this;
+    ++(*this);
+    return tmp;
+  }
+
+  friend bool operator==(const vector_iterator &a, const vector_iterator &b) {
+    return a.ptr_ == b.ptr_;
+  };
+  friend bool operator!=(const vector_iterator &a, const vector_iterator &b) {
+    return a.ptr_ != b.ptr_;
+  };
+
+private:
+  pointer ptr_;
+};
+
+template <typename T> struct vector {
+  T *data_ = nullptr;
+  uint32_t size_ = 0;
+  uint32_t avail_ = 0;
+  vector() {}
+  vector(std::initializer_list<T> elems) {
+    for (const auto &elem : elems) {
+      emplace_back(elem);
+    }
+  }
+  ~vector() {
+    if (data_) {
+      free(data_);
+    }
+  }
+  void increase_avail() {
+    auto new_avail = avail_ * 2;
+    if (data_) {
+      data_ = (T *)realloc(data_, new_avail * sizeof(T));
+    } else {
+      new_avail = 1;
+      data_ = (T *)malloc(sizeof(T));
+    }
+    avail_ = new_avail;
+  }
+
+  void emplace_back(const T &elem) {
+    if (size_ == avail_) {
+      increase_avail();
+    }
+    data_[size_] = elem;
+  }
+
+  vector_iterator<T> begin() { return vector_iterator<T>(data_); }
+  vector_iterator<T> end() { return vector_iterator<T>(&data_[size_]); }
+  vector_iterator<const T> begin() const {
+    return vector_iterator<const T>(data_);
+  }
+  vector_iterator<const T> end() const {
+    return vector_iterator<const T>(&data_[size_]);
+  }
+  uint32_t size() const { return size_; }
+  T *data() { return data_; }
+  const T &at(uint32_t i) const {
+    assert(size_ > i);
+    return data_[i];
+  }
+
+  void clear() {
+    if (data_) {
+      free(data_);
+    }
+    avail_ = 0;
+    data_ = nullptr;
+    size_ = 0;
+  }
+
+  T &back() const {
+    assert(size_);
+    return data_[size_ - 1];
+  }
+
+  void pop_back() {
+    assert(size_);
+    size_--;
+  }
+};
+
+namespace detail {
+
+struct string {
+  vector<char> data;
+  string() = default;
+  template <int N> string(const char (&str)[N]) {
+    for (auto i = 0; i < N; ++i) {
+      data.emplace_back(str[i]);
+    }
+  }
+  uint32_t size() const { return data.size(); }
+};
+
+template <typename A, typename B> struct pair {
+  pair(const A &f, const B &s) : first(f), second(s) {}
+  A first;
+  B second;
+};
+
+}; // namespace detail
 
 struct CodeGenerator;
 
 class Local {
- public:
+public:
   int operator()(uint8_t type);
   void get(int idx);
   void set(int idx);
   void tee(int idx);
 
- private:
-  Local(CodeGenerator& cg_) : cg(cg_) {}
-  CodeGenerator& cg;
+private:
+  Local(CodeGenerator &cg_) : cg(cg_) {}
+  CodeGenerator &cg;
   friend CodeGenerator;
 };
 
 class I32 {
- public:
+public:
   operator uint8_t();
   void const_(int32_t i);
   void clz();
@@ -72,14 +190,14 @@ class I32 {
   void store8(uint32_t alignment = 1, uint32_t offset = 0);
   void store16(uint32_t alignment = 1, uint32_t offset = 0);
 
- private:
-  I32(CodeGenerator& cg_) : cg(cg_) {}
-  CodeGenerator& cg;
+private:
+  I32(CodeGenerator &cg_) : cg(cg_) {}
+  CodeGenerator &cg;
   friend CodeGenerator;
 };
 
 class F32 {
- public:
+public:
   operator uint8_t();
   void const_(float f);
   void eq();
@@ -106,14 +224,14 @@ class F32 {
   void load(uint32_t alignment = 1, uint32_t offset = 0);
   void store(uint32_t alignment = 1, uint32_t offset = 0);
 
- private:
-  F32(CodeGenerator& cg_) : cg(cg_) {}
-  CodeGenerator& cg;
+private:
+  F32(CodeGenerator &cg_) : cg(cg_) {}
+  CodeGenerator &cg;
   friend CodeGenerator;
 };
 
 class V128 {
- public:
+public:
   operator uint8_t();
 
   void i32x4_extract_lane(uint8_t lane);
@@ -181,47 +299,45 @@ class V128 {
   void load32_zero(uint32_t alignment = 1, uint32_t offset = 0);
   void store(uint32_t alignment = 1, uint32_t offset = 0);
 
- private:
-  V128(CodeGenerator& cg_) : cg(cg_) {}
-  CodeGenerator& cg;
+private:
+  V128(CodeGenerator &cg_) : cg(cg_) {}
+  CodeGenerator &cg;
   friend CodeGenerator;
 };
 
 class Memory {
- public:
-  Memory& operator()(uint32_t min);
-  Memory& operator()(uint32_t min, uint32_t max);
-  Memory& export_(std::string);
-  Memory& shared(bool = true);
-  Memory& import_(std::string, std::string);
+public:
+  Memory &operator()(uint32_t min);
+  Memory &operator()(uint32_t min, uint32_t max);
+  Memory &export_(detail::string);
+  Memory &shared(bool = true);
+  Memory &import_(detail::string, detail::string);
   void size();
   void grow();
 
- private:
-  Memory(CodeGenerator& cg_) : cg(cg_) {}
-  CodeGenerator& cg;
+private:
+  Memory(CodeGenerator &cg_) : cg(cg_) {}
+  CodeGenerator &cg;
   uint32_t min = 0;
   uint32_t max = 0;
   bool is_shared = false;
-  std::string a_string = "";
-  std::string b_string = "";
+  detail::string a_string;
+  detail::string b_string;
   bool is_import() const { return a_string.size() && b_string.size(); }
   bool is_export() const { return a_string.size() && !b_string.size(); }
   friend CodeGenerator;
 };
 
 struct Function {
-  Function(std::vector<uint8_t> input_types_,
-           std::vector<uint8_t> output_types_)
+  Function(vector<uint8_t> input_types_, vector<uint8_t> output_types_)
       : input_types(input_types_), output_types(output_types_) {}
-  Function(std::vector<uint8_t> input_types_,
-           std::vector<uint8_t> output_types_,
+  Function(vector<uint8_t> input_types_, vector<uint8_t> output_types_,
            std::function<void()> body_)
       : input_types(input_types_), output_types(output_types_), body(body_) {}
-  std::vector<uint8_t> input_types;
-  std::vector<uint8_t> output_types;
+  vector<uint8_t> input_types;
+  vector<uint8_t> output_types;
   std::function<void()> body;
-  std::vector<uint8_t> locals;  // resolved later
+  vector<uint8_t> locals; // resolved later
   void emit() {
     locals.clear();
     body();
@@ -247,35 +363,34 @@ struct CodeGenerator {
   void end();
   void call(uint32_t funcidx);
 
-  void export_(uint32_t fn_idx, std::string name);
+  void export_(uint32_t fn_idx, detail::string name);
 
   // returns function index
-  uint32_t function(std::vector<uint8_t> input_types,
-                    std::vector<uint8_t> output_types,
+  uint32_t function(vector<uint8_t> input_types, vector<uint8_t> output_types,
                     std::function<void()> body);
 
-  std::vector<uint8_t> emit();
+  vector<uint8_t> emit();
 
   // Implementation
 
   CodeGenerator()
       : local(*this), i32(*this), f32(*this), v128(*this), memory(*this) {}
-  CodeGenerator(const CodeGenerator&) = delete;
-  CodeGenerator(CodeGenerator&&) = delete;
+  CodeGenerator(const CodeGenerator &) = delete;
+  CodeGenerator(CodeGenerator &&) = delete;
 
-  std::vector<Function> functions_;
-  std::unordered_map<uint32_t, std::string> exported_functions_;
-  Function* cur_function_ = nullptr;
+  vector<Function> functions_;
+  vector<detail::pair<uint32_t, detail::string>> exported_functions_;
+  Function *cur_function_ = nullptr;
   // cur_bytes_ is used as a temporary storage
-  std::vector<uint8_t> cur_bytes_;
+  vector<uint8_t> cur_bytes_;
   // a running type checker, purely for safety
-  std::stack<uint8_t> type_stack_;
+  vector<uint8_t> type_stack_;
 
-  using memarg = std::pair<uint32_t, uint32_t>;
+  using memarg = detail::pair<uint32_t, uint32_t>;
 
   // From LLVM
-  std::vector<uint8_t> encode_signed(int32_t n) {
-    std::vector<uint8_t> out;
+  vector<uint8_t> encode_signed(int32_t n) {
+    vector<uint8_t> out;
     auto more = true;
     do {
       uint8_t byte = n & 0x7f;
@@ -290,8 +405,8 @@ struct CodeGenerator {
     return out;
   }
 
-  std::vector<uint8_t> encode_unsigned(uint32_t n) {
-    std::vector<uint8_t> out;
+  vector<uint8_t> encode_unsigned(uint32_t n) {
+    vector<uint8_t> out;
     do {
       uint8_t byte = n & 0x7f;
       n >>= 7;
@@ -303,18 +418,20 @@ struct CodeGenerator {
     return out;
   }
 
-  std::vector<uint8_t> encode_string(std::string s) {
-    std::vector<uint8_t> out;
+  vector<uint8_t> encode_string(detail::string s) {
+    vector<uint8_t> out;
     out.emplace_back(s.size());
-    for (const auto& c : s) {
+    for (const auto &c : s.data) {
       out.emplace_back(c);
     }
     return out;
   }
 
-  template <typename T>
-  void concat(std::vector<uint8_t>& out, const T& inp) {
-    out.insert(out.end(), inp.begin(), inp.end());
+  template <typename T> void concat(vector<uint8_t> &out, const T &inp) {
+    for (const auto &i : inp) {
+      out.emplace_back(i);
+    }
+    // out.insert(out.end(), inp.begin(), inp.end());
   };
 
   int declare_local(uint8_t type) {
@@ -324,40 +441,38 @@ struct CodeGenerator {
     return idx;
   }
 
-  const std::vector<uint8_t>& input_types() {
+  const vector<uint8_t> &input_types() {
     assert(cur_function_);
     return cur_function_->input_types;
   }
 
-  const std::vector<uint8_t>& locals() {
+  const vector<uint8_t> &locals() {
     assert(cur_function_);
     return cur_function_->locals;
   }
 
-  void push(uint8_t type) { type_stack_.push(type); };
+  void push(uint8_t type) { type_stack_.emplace_back(type); };
 
   uint8_t pop() {
     assert(type_stack_.size() && "popping empty stack");
-    auto type = type_stack_.top();
-    type_stack_.pop();
+    auto type = type_stack_.back();
+    type_stack_.pop_back();
     return type;
   };
 
   void emit(uint8_t byte) { cur_bytes_.emplace_back(byte); }
-  void emit(std::vector<uint8_t> bytes) { concat(cur_bytes_, bytes); }
-  void emit(const memarg& m) {
-    emit(encode_unsigned(std::get<0>(m)));
-    emit(encode_unsigned(std::get<1>(m)));
+  void emit(vector<uint8_t> bytes) { concat(cur_bytes_, bytes); }
+  void emit(const memarg &m) {
+    emit(encode_unsigned(m.first));
+    emit(encode_unsigned(m.second));
   }
 };
 
-inline int Local::operator()(uint8_t type) {
-  return cg.declare_local(type);
-};
+inline int Local::operator()(uint8_t type) { return cg.declare_local(type); };
 
 inline void Local::set(int idx) {
   auto t = cg.pop();
-  const auto& input_types = cg.input_types();
+  const auto &input_types = cg.input_types();
   auto expected_type = [&]() {
     if (idx < input_types.size()) {
       return input_types.at(idx);
@@ -371,7 +486,7 @@ inline void Local::set(int idx) {
 }
 
 inline void Local::get(int idx) {
-  const auto& input_types = cg.input_types();
+  const auto &input_types = cg.input_types();
   if (idx < input_types.size()) {
     cg.push(input_types.at(idx));
   } else {
@@ -384,7 +499,7 @@ inline void Local::get(int idx) {
 
 inline void Local::tee(int idx) {
   auto t = cg.pop();
-  const auto& input_types = cg.input_types();
+  const auto &input_types = cg.input_types();
   auto expected_type = [&]() {
     if (idx < input_types.size()) {
       return input_types.at(idx);
@@ -398,9 +513,7 @@ inline void Local::tee(int idx) {
   cg.push(expected_type);
 }
 
-inline I32::operator uint8_t() {
-  return 0x7f;
-}
+inline I32::operator uint8_t() { return 0x7f; }
 
 inline void I32::const_(int32_t i) {
   cg.emit(0x41);
@@ -408,9 +521,7 @@ inline void I32::const_(int32_t i) {
   cg.push(cg.i32);
 }
 
-inline F32::operator uint8_t() {
-  return 0x7d;
-}
+inline F32::operator uint8_t() { return 0x7d; }
 
 inline void F32::const_(float f) {
   cg.emit(0x43);
@@ -422,44 +533,42 @@ inline void F32::const_(float f) {
   cg.push(cg.f32);
 }
 
-inline V128::operator uint8_t() {
-  return 0x7b;
-}
+inline V128::operator uint8_t() { return 0x7b; }
 
-#define UNARY_OP(classname, op, opcode, in_type, out_type) \
-  inline void classname::op() {                            \
-    bool valid = cg.pop() == cg.in_type;                   \
-    assert(valid && "invalid type for " #op);              \
-    cg.emit(opcode);                                       \
-    cg.push(cg.out_type);                                  \
+#define UNARY_OP(classname, op, opcode, in_type, out_type)                     \
+  inline void classname::op() {                                                \
+    bool valid = cg.pop() == cg.in_type;                                       \
+    assert(valid && "invalid type for " #op);                                  \
+    cg.emit(opcode);                                                           \
+    cg.push(cg.out_type);                                                      \
   }
 
-#define BINARY_OP(classname, op, opcode, type_a, type_b, out_type) \
-  inline void classname::op() {                                    \
-    bool valid = cg.pop() == cg.type_a && cg.pop() == cg.type_b;   \
-    assert(valid && "invalid type for " #op);                      \
-    cg.emit(opcode);                                               \
-    cg.push(cg.out_type);                                          \
+#define BINARY_OP(classname, op, opcode, type_a, type_b, out_type)             \
+  inline void classname::op() {                                                \
+    bool valid = cg.pop() == cg.type_a && cg.pop() == cg.type_b;               \
+    assert(valid && "invalid type for " #op);                                  \
+    cg.emit(opcode);                                                           \
+    cg.push(cg.out_type);                                                      \
   }
 
-#define LOAD_OP(classname, op, opcode, out_type)                   \
-  inline void classname::op(uint32_t alignment, uint32_t offset) { \
-    auto idx_type = cg.pop();                                      \
-    assert(idx_type == cg.i32);                                    \
-    cg.emit(opcode);                                               \
-    cg.emit(cg.encode_unsigned(alignment));                        \
-    cg.emit(cg.encode_unsigned(offset));                           \
-    cg.push(cg.out_type);                                          \
+#define LOAD_OP(classname, op, opcode, out_type)                               \
+  inline void classname::op(uint32_t alignment, uint32_t offset) {             \
+    auto idx_type = cg.pop();                                                  \
+    assert(idx_type == cg.i32);                                                \
+    cg.emit(opcode);                                                           \
+    cg.emit(cg.encode_unsigned(alignment));                                    \
+    cg.emit(cg.encode_unsigned(offset));                                       \
+    cg.push(cg.out_type);                                                      \
   }
 
-#define STORE_OP(classname, op, opcode)                            \
-  inline void classname::op(uint32_t alignment, uint32_t offset) { \
-    auto val_type = cg.pop();                                      \
-    auto idx_type = cg.pop();                                      \
-    assert(idx_type == cg.i32);                                    \
-    cg.emit(opcode);                                               \
-    cg.emit(cg.encode_unsigned(alignment));                        \
-    cg.emit(cg.encode_unsigned(offset));                           \
+#define STORE_OP(classname, op, opcode)                                        \
+  inline void classname::op(uint32_t alignment, uint32_t offset) {             \
+    auto val_type = cg.pop();                                                  \
+    auto idx_type = cg.pop();                                                  \
+    assert(idx_type == cg.i32);                                                \
+    cg.emit(opcode);                                                           \
+    cg.emit(cg.encode_unsigned(alignment));                                    \
+    cg.emit(cg.encode_unsigned(offset));                                       \
   }
 
 UNARY_OP(I32, clz, 0x67, i32, i32);
@@ -528,15 +637,15 @@ STORE_OP(F32, store, 0x38);
 #undef LOAD_OP
 #undef STORE_OP
 
-#define VECTOR_LOAD(op, vopcode)                              \
-  inline void V128::op(uint32_t alignment, uint32_t offset) { \
-    auto idx_type = cg.pop();                                 \
-    assert(idx_type == cg.i32);                               \
-    cg.emit(0xfd);                                            \
-    cg.emit(cg.encode_unsigned(vopcode));                     \
-    cg.emit(cg.encode_unsigned(alignment));                   \
-    cg.emit(cg.encode_unsigned(offset));                      \
-    cg.push(cg.v128);                                         \
+#define VECTOR_LOAD(op, vopcode)                                               \
+  inline void V128::op(uint32_t alignment, uint32_t offset) {                  \
+    auto idx_type = cg.pop();                                                  \
+    assert(idx_type == cg.i32);                                                \
+    cg.emit(0xfd);                                                             \
+    cg.emit(cg.encode_unsigned(vopcode));                                      \
+    cg.emit(cg.encode_unsigned(alignment));                                    \
+    cg.emit(cg.encode_unsigned(offset));                                       \
+    cg.push(cg.v128);                                                          \
   }
 
 VECTOR_LOAD(load, 0);
@@ -608,24 +717,24 @@ inline void V128::f32x4_splat() {
   cg.push(cg.v128);
 }
 
-#define VECTOR_BINARY_OP(op, vopcode, a_type, b_type, out_type) \
-  inline void V128::op() {                                      \
-    auto b = cg.pop();                                          \
-    assert(cg.b_type == b);                                     \
-    auto a = cg.pop();                                          \
-    assert(cg.a_type == a);                                     \
-    cg.emit(0xfd);                                              \
-    cg.emit(cg.encode_unsigned(vopcode));                       \
-    cg.push(cg.out_type);                                       \
+#define VECTOR_BINARY_OP(op, vopcode, a_type, b_type, out_type)                \
+  inline void V128::op() {                                                     \
+    auto b = cg.pop();                                                         \
+    assert(cg.b_type == b);                                                    \
+    auto a = cg.pop();                                                         \
+    assert(cg.a_type == a);                                                    \
+    cg.emit(0xfd);                                                             \
+    cg.emit(cg.encode_unsigned(vopcode));                                      \
+    cg.push(cg.out_type);                                                      \
   }
 
-#define VECTOR_UNARY_OP(op, vopcode, inp_type, out_type) \
-  inline void V128::op() {                               \
-    auto inp = cg.pop();                                 \
-    assert(cg.inp_type == inp);                          \
-    cg.emit(0xfd);                                       \
-    cg.emit(cg.encode_unsigned(vopcode));                \
-    cg.push(cg.out_type);                                \
+#define VECTOR_UNARY_OP(op, vopcode, inp_type, out_type)                       \
+  inline void V128::op() {                                                     \
+    auto inp = cg.pop();                                                       \
+    assert(cg.inp_type == inp);                                                \
+    cg.emit(0xfd);                                                             \
+    cg.emit(cg.encode_unsigned(vopcode));                                      \
+    cg.push(cg.out_type);                                                      \
   }
 
 VECTOR_BINARY_OP(i32x4_eq, 55, v128, v128, v128);
@@ -688,31 +797,31 @@ VECTOR_BINARY_OP(f32x4_max, 233, v128, v128, v128);
 VECTOR_BINARY_OP(f32x4_pmin, 234, v128, v128, v128);
 VECTOR_BINARY_OP(f32x4_pmax, 235, v128, v128, v128);
 
-inline Memory& Memory::operator()(uint32_t min_) {
+inline Memory &Memory::operator()(uint32_t min_) {
   assert(min == 0 && max == 0);
   min = min_;
   return *this;
 }
 
-inline Memory& Memory::operator()(uint32_t min_, uint32_t max_) {
+inline Memory &Memory::operator()(uint32_t min_, uint32_t max_) {
   assert(min == 0 && max == 0);
   min = min_;
   max = max_;
   return *this;
 }
 
-inline Memory& Memory::export_(std::string a) {
+inline Memory &Memory::export_(detail::string a) {
   assert(!(is_import() || is_export()) && "already set");
   a_string = a;
   return *this;
 }
 
-inline Memory& Memory::shared(bool make_shared) {
+inline Memory &Memory::shared(bool make_shared) {
   is_shared = make_shared;
   return *this;
 }
 
-inline Memory& Memory::import_(std::string a, std::string b) {
+inline Memory &Memory::import_(detail::string a, detail::string b) {
   assert(!(is_import() || is_export()) && "already set");
   a_string = a;
   b_string = b;
@@ -728,9 +837,7 @@ inline void Memory::grow() {
   cg.emit(0x00);
 }
 
-inline void CodeGenerator::nop() {
-  emit(0x01);
-}
+inline void CodeGenerator::nop() { emit(0x01); }
 inline void CodeGenerator::block(uint8_t type) {
   emit(0x02);
   emit(type);
@@ -746,9 +853,7 @@ inline void CodeGenerator::if_(uint8_t type) {
   emit(0x04);
   emit(type);
 }
-inline void CodeGenerator::else_() {
-  emit(0x05);
-}
+inline void CodeGenerator::else_() { emit(0x05); }
 inline void CodeGenerator::br(uint32_t labelidx) {
   emit(0x0c);
   emit(encode_unsigned(labelidx));
@@ -759,44 +864,43 @@ inline void CodeGenerator::br_if(uint32_t labelidx) {
   emit(0x0d);
   emit(encode_unsigned(labelidx));
 }
-inline void CodeGenerator::end() {
-  emit(0x0b);
-}
+inline void CodeGenerator::end() { emit(0x0b); }
 inline void CodeGenerator::call(uint32_t fn_idx) {
   assert(fn_idx < functions_.size() && "function index does not exist");
   emit(0x10);
   emit(encode_unsigned(fn_idx));
 }
 
-inline void CodeGenerator::export_(uint32_t fn, std::string name) {
-  exported_functions_[fn] = name;
+inline void CodeGenerator::export_(uint32_t fn, detail::string name) {
+  exported_functions_.emplace_back(
+      detail::pair<uint32_t, detail::string>(fn, name));
 }
 
-inline uint32_t CodeGenerator::function(std::vector<uint8_t> input_types,
-                                        std::vector<uint8_t> output_types,
+inline uint32_t CodeGenerator::function(vector<uint8_t> input_types,
+                                        vector<uint8_t> output_types,
                                         std::function<void()> body) {
   auto idx = functions_.size();
-  functions_.emplace_back(input_types, output_types, body);
+  functions_.emplace_back(Function(input_types, output_types, body));
   return idx;
 }
 
-inline std::vector<uint8_t> CodeGenerator::emit() {
+inline vector<uint8_t> CodeGenerator::emit() {
   cur_bytes_.clear();
-  std::vector<uint8_t> emitted_bytes;
+  vector<uint8_t> emitted_bytes = {// magic module header
+                                   0x00, 0x61, 0x73, 0x6d,
+                                   // module version
+                                   0x01, 0x00, 0x00, 0x00};
 
-  concat(emitted_bytes, magic_module_header);
-  concat(emitted_bytes, module_version);
-
-  std::vector<uint8_t> type_section_bytes;
+  vector<uint8_t> type_section_bytes;
   concat(type_section_bytes, encode_unsigned(functions_.size()));
-  for (const auto& f : functions_) {
+  for (const auto &f : functions_) {
     type_section_bytes.emplace_back(0x60);
     concat(type_section_bytes, encode_unsigned(f.input_types.size()));
-    for (const auto& t : f.input_types) {
+    for (const auto &t : f.input_types) {
       type_section_bytes.emplace_back(t);
     }
     concat(type_section_bytes, encode_unsigned(f.output_types.size()));
-    for (const auto& t : f.output_types) {
+    for (const auto &t : f.output_types) {
       type_section_bytes.emplace_back(t);
     }
   }
@@ -805,30 +909,30 @@ inline std::vector<uint8_t> CodeGenerator::emit() {
   concat(emitted_bytes, encode_unsigned(type_section_bytes.size()));
   concat(emitted_bytes, type_section_bytes);
 
-	std::vector<uint8_t> import_section_bytes;
+  vector<uint8_t> import_section_bytes;
   if (memory.is_import()) {
-		concat(import_section_bytes, encode_unsigned(1)); // 1 import
+    concat(import_section_bytes, encode_unsigned(1)); // 1 import
     concat(import_section_bytes, encode_string(memory.a_string));
     concat(import_section_bytes, encode_string(memory.b_string));
-		import_section_bytes.emplace_back(0x2); // memory flag
+    import_section_bytes.emplace_back(0x2); // memory flag
     if (memory.min && memory.max) {
-			if (memory.is_shared) {
-				import_section_bytes.emplace_back(0x3);
-			} else {
+      if (memory.is_shared) {
+        import_section_bytes.emplace_back(0x3);
+      } else {
         import_section_bytes.emplace_back(0x01);
-			}
+      }
       concat(import_section_bytes, encode_unsigned(memory.min));
       concat(import_section_bytes, encode_unsigned(memory.max));
-		} else {
-			assert(!memory.is_shared && "shared memory must have a max size");
+    } else {
+      assert(!memory.is_shared && "shared memory must have a max size");
       concat(import_section_bytes, encode_unsigned(memory.min));
-		}
+    }
     emitted_bytes.emplace_back(0x2);
     concat(emitted_bytes, encode_unsigned(import_section_bytes.size()));
     concat(emitted_bytes, import_section_bytes);
-	}
+  }
 
-  std::vector<uint8_t> function_section_bytes;
+  vector<uint8_t> function_section_bytes;
   concat(function_section_bytes, encode_unsigned(functions_.size()));
   for (auto i = 0; i < functions_.size(); ++i) {
     concat(function_section_bytes, encode_unsigned(i));
@@ -837,9 +941,9 @@ inline std::vector<uint8_t> CodeGenerator::emit() {
   concat(emitted_bytes, encode_unsigned(function_section_bytes.size()));
   concat(emitted_bytes, function_section_bytes);
 
-  std::vector<uint8_t> memory_section_bytes;
+  vector<uint8_t> memory_section_bytes;
   if (!memory.is_import() && (memory.min || memory.max)) {
-    memory_section_bytes.emplace_back(0x01);  // always 1 memory
+    memory_section_bytes.emplace_back(0x01); // always 1 memory
     if (memory.min && memory.max) {
       if (memory.is_shared) {
         memory_section_bytes.emplace_back(0x03);
@@ -849,7 +953,7 @@ inline std::vector<uint8_t> CodeGenerator::emit() {
       concat(memory_section_bytes, encode_unsigned(memory.min));
       concat(memory_section_bytes, encode_unsigned(memory.max));
     } else {
-			assert(!memory.is_shared && "shared memory must have a max size");
+      assert(!memory.is_shared && "shared memory must have a max size");
       memory_section_bytes.emplace_back(0x00);
       concat(memory_section_bytes, encode_unsigned(memory.min));
     }
@@ -858,16 +962,16 @@ inline std::vector<uint8_t> CodeGenerator::emit() {
     concat(emitted_bytes, memory_section_bytes);
   }
 
-  std::vector<uint8_t> export_section_bytes;
+  vector<uint8_t> export_section_bytes;
 
   auto num_exports = exported_functions_.size() + memory.is_export();
   concat(export_section_bytes, encode_unsigned(num_exports));
   if (memory.is_export()) {
     concat(export_section_bytes, encode_string(memory.a_string));
     export_section_bytes.emplace_back(0x02);
-    export_section_bytes.emplace_back(0x00);  // always 1 memory at index 0
+    export_section_bytes.emplace_back(0x00); // always 1 memory at index 0
   }
-  for (const auto& p : exported_functions_) {
+  for (const auto &p : exported_functions_) {
     concat(export_section_bytes, encode_string(p.second));
     export_section_bytes.emplace_back(0x00);
     concat(export_section_bytes, encode_unsigned(p.first));
@@ -876,24 +980,24 @@ inline std::vector<uint8_t> CodeGenerator::emit() {
   concat(emitted_bytes, encode_unsigned(export_section_bytes.size()));
   concat(emitted_bytes, export_section_bytes);
 
-  std::vector<uint8_t> code_section_bytes;
+  vector<uint8_t> code_section_bytes;
   concat(code_section_bytes, encode_unsigned(functions_.size()));
-  for (auto& f : functions_) {
+  for (auto &f : functions_) {
     cur_function_ = &f;
 
     cur_bytes_.clear();
     f.emit();
     end();
-    std::vector<uint8_t> body_bytes = cur_bytes_;
+    vector<uint8_t> body_bytes = cur_bytes_;
 
     cur_bytes_.clear();
     concat(cur_bytes_, encode_unsigned(f.locals.size()));
-    for (const auto& l : f.locals) {
+    for (const auto &l : f.locals) {
       emit(0x1);
       emit(l);
     }
 
-    std::vector<uint8_t> header_bytes = cur_bytes_;
+    vector<uint8_t> header_bytes = cur_bytes_;
     auto fn_size = header_bytes.size() + body_bytes.size();
 
     concat(code_section_bytes, encode_unsigned(fn_size));
@@ -909,4 +1013,4 @@ inline std::vector<uint8_t> CodeGenerator::emit() {
   return emitted_bytes;
 }
 
-}  // namespace wasmblr
+} // namespace wasmblr
