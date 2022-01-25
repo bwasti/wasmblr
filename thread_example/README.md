@@ -23,7 +23,7 @@ g++ thread.cc -I../ -o thread
 ./thread
 ```
 
-## Then run the server with proper CORS
+## Then run the server with proper cross origin isolation
 
 This is a hacked python http.server that will 
 serve up the proper isolation (COOP + COEP).
