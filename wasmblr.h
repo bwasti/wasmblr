@@ -562,6 +562,7 @@ inline void V128::i32x4_extract_lane(uint8_t lane) {
   assert(val_type == cg.v128);
   cg.emit(0xfd);
   cg.emit(cg.encode_unsigned(27));
+  cg.emit(lane);
   cg.push(cg.i32);
 }
 
@@ -570,26 +571,29 @@ inline void V128::f32x4_extract_lane(uint8_t lane) {
   assert(val_type == cg.v128);
   cg.emit(0xfd);
   cg.emit(cg.encode_unsigned(31));
+  cg.emit(lane);
   cg.push(cg.f32);
 }
 
 inline void V128::i32x4_replace_lane(uint8_t lane) {
-  auto vec_type = cg.pop();
-  assert(vec_type == cg.v128);
   auto val_type = cg.pop();
   assert(val_type == cg.i32);
+  auto vec_type = cg.pop();
+  assert(vec_type == cg.v128);
   cg.emit(0xfd);
   cg.emit(cg.encode_unsigned(28));
+  cg.emit(lane);
   cg.push(cg.v128);
 }
 
 inline void V128::f32x4_replace_lane(uint8_t lane) {
-  auto vec_type = cg.pop();
-  assert(vec_type == cg.v128);
   auto val_type = cg.pop();
   assert(val_type == cg.f32);
+  auto vec_type = cg.pop();
+  assert(vec_type == cg.v128);
   cg.emit(0xfd);
   cg.emit(cg.encode_unsigned(32));
+  cg.emit(lane);
   cg.push(cg.v128);
 }
 
